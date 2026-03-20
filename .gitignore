@@ -95,3 +95,9 @@ coverage/
 # Uncomment one:
 # package-lock.json
 # yarn.lock
+
+# Project-specific ignores
+build_log*.txt
+*.gguf
+*.onnx
+*.tar.gz

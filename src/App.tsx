@@ -6,6 +6,8 @@ import { StatusBar } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 // Note: react-native-screens is shimmed in index.js for iOS New Architecture compatibility
 import { RunAnywhere, SDKEnvironment } from '@runanywhere/core';
+import { LlamaCPP, LlamaCppProvider, isNativeLlamaModuleAvailable } from '@runanywhere/llamacpp';
+import { ONNX, ONNXProvider, isNativeONNXModuleAvailable } from '@runanywhere/onnx';
 import { ModelServiceProvider, registerDefaultModels } from './services/ModelService';
 import { AppColors } from './theme';
 import {
@@ -15,6 +17,9 @@ import {
   SpeechToTextScreen,
   TextToSpeechScreen,
   VoicePipelineScreen,
+  SmartNotesScreen,
+  SplashScreen,
+  ModelDownloadScreen,
 } from './screens';
 import { RootStackParamList } from './navigation/types';
 
@@ -32,12 +37,16 @@ const App: React.FC = () => {
           environment: SDKEnvironment.Development,
         });
 
-        // Register backends (per docs: https://docs.runanywhere.ai/react-native/quick-start)
-        const { LlamaCPP } = await import('@runanywhere/llamacpp');
-        const { ONNX } = await import('@runanywhere/onnx');
+        // Verify native modules are available via Nitro
+        console.log('LlamaCPP available:', isNativeLlamaModuleAvailable());
+        console.log('ONNX available:', isNativeONNXModuleAvailable());
+
+        // Register backends with static imports (must await to complete native registration)
+        const llamaRegistered = await LlamaCppProvider.register();
+        const onnxRegistered = await ONNXProvider.register();
         
-        LlamaCPP.register();
-        ONNX.register();
+        console.log('LlamaCPP registered:', llamaRegistered);
+        console.log('ONNX registered:', onnxRegistered);
 
         // Register default models
         await registerDefaultModels();
@@ -57,17 +66,9 @@ const App: React.FC = () => {
         <StatusBar barStyle="light-content" backgroundColor={AppColors.primaryDark} />
         <NavigationContainer>
           <Stack.Navigator
+            initialRouteName="Splash"
             screenOptions={{
-              headerStyle: {
-                backgroundColor: AppColors.primaryDark,
-                elevation: 0,
-                shadowOpacity: 0,
-              },
-              headerTintColor: AppColors.textPrimary,
-              headerTitleStyle: {
-                fontWeight: '700',
-                fontSize: 18,
-              },
+              headerShown: false, // Set headerShown to false globally
               cardStyle: {
                 backgroundColor: AppColors.primaryDark,
               },
@@ -75,6 +76,14 @@ const App: React.FC = () => {
               ...TransitionPresets.SlideFromRightIOS,
             }}
           >
+            <Stack.Screen
+              name="Splash"
+              component={SplashScreen}
+            />
+            <Stack.Screen
+              name="ModelDownload"
+              component={ModelDownloadScreen}
+            />
             <Stack.Screen
               name="Home"
               component={HomeScreen}
@@ -104,6 +113,11 @@ const App: React.FC = () => {
               name="VoicePipeline"
               component={VoicePipelineScreen}
               options={{ title: 'Voice Pipeline' }}
+            />
+            <Stack.Screen
+              name="SmartNotes"
+              component={SmartNotesScreen}
+              options={{ title: 'Smart Voice Notes' }}
             />
           </Stack.Navigator>
         </NavigationContainer>
