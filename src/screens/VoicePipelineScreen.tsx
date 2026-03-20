@@ -56,36 +56,31 @@ export const VoicePipelineScreen: React.FC = () => {
   // Handle voice session events per docs:
   // https://docs.runanywhere.ai/react-native/voice-agent#voicesessionevent
   const handleVoiceEvent = useCallback((event: VoiceSessionEvent) => {
+    const transcript = (event as any).transcription || (event as any).data?.transcription || '';
+    const response = (event as any).response || (event as any).data?.response || '';
+    const audio = (event as any).audio || (event as any).data?.audio || '';
+    const error = (event as any).error || (event as any).data?.error || '';
+
     switch (event.type) {
-      case 'sessionStarted':
+      case 'started':
+      case 'listening':
+      case 'speechStarted':
         setStatus('Listening...');
         setAudioLevel(0.2);
         break;
-        
-      case 'listeningStarted':
-        setStatus('Listening...');
-        setAudioLevel(0.3);
-        break;
-        
-      case 'speechDetected':
-        setStatus('Hearing you...');
-        setAudioLevel(0.7);
-        break;
-        
       case 'speechEnded':
-        setAudioLevel(0.1);
-        break;
-        
-      case 'transcribing':
-        setStatus('Processing speech...');
+        setStatus('Processing...');
         setAudioLevel(0.4);
         break;
-        
-      case 'transcriptionComplete':
-        if (event.data?.transcript) {
+      case 'processing':
+        setStatus('Processing...');
+        setAudioLevel(0.5);
+        break;
+      case 'transcribed':
+        if (transcript) {
           const userMessage: ConversationMessage = {
             role: 'user',
-            text: event.data.transcript,
+            text: transcript,
             timestamp: new Date(),
           };
           setConversation(prev => [...prev, userMessage]);
@@ -93,17 +88,11 @@ export const VoicePipelineScreen: React.FC = () => {
         setStatus('Thinking...');
         setAudioLevel(0.5);
         break;
-        
-      case 'generating':
-        setStatus('Generating response...');
-        setAudioLevel(0.5);
-        break;
-        
-      case 'generationComplete':
-        if (event.data?.response) {
+      case 'responded':
+        if (response) {
           const assistantMessage: ConversationMessage = {
             role: 'assistant',
-            text: event.data.response,
+            text: response,
             timestamp: new Date(),
           };
           setConversation(prev => [...prev, assistantMessage]);
@@ -111,33 +100,29 @@ export const VoicePipelineScreen: React.FC = () => {
         setStatus('Synthesizing...');
         setAudioLevel(0.6);
         break;
-        
-      case 'synthesizing':
-        setStatus('Preparing voice...');
-        break;
-        
-      case 'synthesisComplete':
-        setStatus('Speaking...');
-        // Play audio if provided
-        if (event.data?.audio) {
-          playResponseAudio(event.data.audio);
-        }
-        break;
-        
       case 'speaking':
         setStatus('Speaking...');
         setAudioLevel(0.8);
+        if (audio) {
+          playResponseAudio(audio);
+        }
         break;
-        
-      case 'turnComplete':
+      case 'turnCompleted':
         setStatus('Listening...');
         setAudioLevel(0.3);
         break;
-        
-      case 'error':
-        setStatus(`Error: ${event.data?.error || 'Unknown error'}`);
+      case 'stopped':
+        setStatus('Ready');
         setAudioLevel(0);
-        console.error('Voice session error:', event.data?.error);
+        setIsActive(false);
+        break;
+      case 'error':
+        setStatus(`Error: ${error || 'Unknown error'}`);
+        setAudioLevel(0);
+        setIsActive(false);
+        console.error('Voice session error:', error);
+        break;
+      default:
         break;
     }
   }, []);
@@ -239,25 +224,15 @@ export const VoicePipelineScreen: React.FC = () => {
     setStatus('Starting...');
 
     try {
-      // Per docs: Use startVoiceSession with VoiceSessionConfig and callback
-      sessionRef.current = await RunAnywhere.startVoiceSession(
-        {
-          agentConfig: {
-            llmModelId: MODEL_IDS.llm,
-            sttModelId: MODEL_IDS.stt,
-            ttsModelId: MODEL_IDS.tts,
-            systemPrompt: 'You are a helpful, friendly voice assistant. Keep your responses brief and conversational.',
-            generationOptions: {
-              maxTokens: 150,
-              temperature: 0.7,
-            },
-          },
-          enableVAD: true,
-          vadSensitivity: 0.5,
-          speechTimeout: 3000, // 3 seconds timeout for speech
-        },
-        handleVoiceEvent
-      );
+      sessionRef.current = await RunAnywhere.startVoiceSession({
+        onEvent: handleVoiceEvent,
+        continuousMode: true,
+        autoPlayTTS: true,
+        language: 'en',
+        systemPrompt: 'You are a helpful, friendly voice assistant. Keep your responses brief and conversational.',
+        silenceDuration: 1.5,
+        speechThreshold: 0.1,
+      });
     } catch (error) {
       console.error('Voice agent error:', error);
       setStatus(`Error: ${error}`);

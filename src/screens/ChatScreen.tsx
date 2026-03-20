@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,12 +10,16 @@ import {
   Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-import { RunAnywhere } from '@runanywhere/core';
+import { StackScreenProps } from '@react-navigation/stack';
+import { RootStackParamList } from '../navigation/types';
+import { RunAnywhere, VoiceSessionEvent, VoiceSessionHandle } from '@runanywhere/core';
 import { AppColors } from '../theme';
 import { useModelService } from '../services/ModelService';
 import { ChatMessageBubble, ChatMessage, ModelLoaderWidget } from '../components';
 
-export const ChatScreen: React.FC = () => {
+type ChatScreenProps = StackScreenProps<RootStackParamList, 'Chat'>;
+
+export const ChatScreen: React.FC<ChatScreenProps> = ({ route }) => {
   const modelService = useModelService();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
@@ -25,6 +29,81 @@ export const ChatScreen: React.FC = () => {
   const streamCancelRef = useRef<(() => void) | null>(null);
   const responseRef = useRef(''); // Track response for closure
 
+  const [voiceStatus, setVoiceStatus] = useState('Ready');
+  const [isVoiceActive, setIsVoiceActive] = useState(false);
+  const voiceSessionRef = useRef<VoiceSessionHandle | null>(null);
+
+  const handleVoiceEvent = useCallback((event: VoiceSessionEvent) => {
+    switch (event.type) {
+      case 'started':
+      case 'listening':
+        setVoiceStatus('Listening...');
+        break;
+      case 'transcribed':
+        if (event.transcription) {
+          setInputText(event.transcription);
+        }
+        setVoiceStatus('Transcribed');
+        break;
+      case 'responded':
+        if (event.response) {
+          const assistantMessage: ChatMessage = {
+            text: event.response,
+            isUser: false,
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, assistantMessage]);
+        }
+        setVoiceStatus('Assistant responded');
+        break;
+      case 'error':
+        setVoiceStatus(`Voice Error: ${event.error || 'Unknown'}`);
+        console.error('Voice event error', event);
+        break;
+      case 'stopped':
+        setVoiceStatus('Stopped');
+        setIsVoiceActive(false);
+        break;
+      default:
+        break;
+    }
+  }, []);
+
+  const startVoiceSession = async () => {
+    if (isVoiceActive) {
+      return;
+    }
+    setIsVoiceActive(true);
+    setVoiceStatus('Starting voice pipeline...');
+
+    try {
+      voiceSessionRef.current = await RunAnywhere.startVoiceSession({
+        onEvent: handleVoiceEvent,
+        continuousMode: true,
+        autoPlayTTS: false,
+        silenceDuration: 1.0,
+      });
+    } catch (error) {
+      setVoiceStatus(`Voice session error: ${error}`);
+      setIsVoiceActive(false);
+      console.error('startVoiceSession', error);
+    }
+  };
+
+  const stopVoiceSession = async () => {
+    try {
+      if (voiceSessionRef.current) {
+        await voiceSessionRef.current.stop();
+        voiceSessionRef.current = null;
+      }
+    } catch (error) {
+      console.error('stopVoiceSession', error);
+    } finally {
+      setIsVoiceActive(false);
+      setVoiceStatus('Ready');
+    }
+  };
+
   useEffect(() => {
     // Scroll to bottom when messages change
     if (messages.length > 0) {
@@ -33,6 +112,15 @@ export const ChatScreen: React.FC = () => {
       }, 100);
     }
   }, [messages, currentResponse]);
+
+  useEffect(() => {
+    if (route.params?.startVoice) {
+      startVoiceSession();
+    }
+    return () => {
+      stopVoiceSession();
+    };
+  }, [route.params]);
 
   const handleSend = async () => {
     const text = inputText.trim();
@@ -73,8 +161,6 @@ export const ChatScreen: React.FC = () => {
         text: responseRef.current,
         isUser: false,
         timestamp: new Date(),
-        tokensPerSecond: finalResult.performanceMetrics?.tokensPerSecond,
-        totalTokens: finalResult.performanceMetrics?.totalTokens,
       };
       setMessages(prev => [...prev, assistantMessage]);
       setCurrentResponse('');
@@ -149,6 +235,13 @@ export const ChatScreen: React.FC = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
+      <View style={styles.voiceStatusbar}>
+        <Text style={styles.voiceStatusText}>{voiceStatus}</Text>
+        <TouchableOpacity onPress={isVoiceActive ? stopVoiceSession : startVoiceSession} style={styles.voiceStatusButton}>
+          <Text style={styles.voiceStatusButtonText}>{isVoiceActive ? 'Stop mic' : 'Start mic'}</Text>
+        </TouchableOpacity>
+      </View>
+
       {messages.length === 0 ? (
         <View style={styles.emptyState}>
           <View style={styles.emptyIconContainer}>
@@ -322,6 +415,31 @@ const styles = StyleSheet.create({
     height: 48,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  voiceStatusbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: AppColors.surfaceCard,
+    borderBottomWidth: 1,
+    borderBottomColor: AppColors.textMuted + '55',
+  },
+  voiceStatusText: {
+    color: AppColors.textSecondary,
+    fontSize: 13,
+  },
+  voiceStatusButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: AppColors.accentCyan,
+    borderRadius: 999,
+  },
+  voiceStatusButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 12,
   },
   stopIconText: {
     fontSize: 20,

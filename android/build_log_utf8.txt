@@ -1,0 +1,62 @@
+﻿.\gradlew.bat : 
+At line:1 char:1
++ .\gradlew.bat 
+assembleDebug 2>&1 | 
+Out-File -Encoding 
+utf8 build_log_ ...
++ ~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~
+    + CategoryInfo     
+         : 
+NotSpecified: (:St    
+ring) [], RemoteExcept 
+   ion
+    + 
+FullyQualifiedErrorI   
+ d : NativeCommandError
+ 
+FAILURE: Build failed 
+with an exception.
+
+* Where:
+Settings file 'D:\HackX
+treme\react-native-star
+ter-app\android\setting
+s.gradle' line: 2
+
+* What went wrong:
+Error resolving plugin 
+[id: 'com.facebook.reac
+t.settings']
+> java.io.UncheckedIOEx
+ception: Could not 
+move temporary 
+workspace (D:\HackXtrem
+e\react-native-starter-
+app\android\.gradle\8.8
+\dependencies-accessors
+\7fcb0c0ad2c738bd0405ef
+d8c2e211751e56733e-df4f
+370e-cf2c-43ce-9dec-e13
+05a75860c) to 
+immutable location (D:\
+HackXtreme\react-native
+-starter-app\android\.g
+radle\8.8\dependencies-
+accessors\7fcb0c0ad2c73
+8bd0405efd8c2e211751e56
+733e)
+
+* Try:
+> Run with 
+--stacktrace option to 
+get the stack trace.
+> Run with --info or 
+--debug option to get 
+more log output.
+> Run with --scan to 
+get full insights.
+> Get more help at http
+s://help.gradle.org.
+
+BUILD FAILED in 1s

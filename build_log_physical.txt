@@ -1,0 +1,76 @@
+﻿node.exe : [33m[1mwar
+n[22m[39m 
+[0mPackage [1m@runany
+where/core[22m 
+contains invalid 
+configuration: [1m"dep
+endency.platforms.ios.p
+odspecPath" is not 
+allowed[22m. Please 
+verify it's properly 
+linked using "npx 
+react-native config" 
+command and contact 
+the package 
+maintainers about 
+this.[0m
+At line:1 char:1
++ & "C:\Program 
+Files\nodejs/node.exe" 
+"C:\Program 
+Files\nodejs/node_mo 
+...
++ ~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: ([33m[1mwarn   
+ [...about this.[    
+0m:String) [], Rem    
+oteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+[33m[1mwarn[22m[39m
+ [0mPackage [1m@runan
+ywhere/llamacpp[22m 
+contains invalid 
+configuration: [1m"dep
+endency.platforms.ios.p
+odspecPath" is not 
+allowed[22m. Please 
+verify it's properly 
+linked using "npx 
+react-native config" 
+command and contact 
+the package 
+maintainers about 
+this.[0m
+[33m[1mwarn[22m[39m
+ [0mPackage [1m@runan
+ywhere/onnx[22m 
+contains invalid 
+configuration: [1m"dep
+endency.platforms.ios.p
+odspecPath" is not 
+allowed[22m. Please 
+verify it's properly 
+linked using "npx 
+react-native config" 
+command and contact 
+the package 
+maintainers about 
+this.[0m
+[36m[1minfo[22m[39m [0mAnother process is running on port 8082.[0m
+[90m[1mdebug[22m[39m [0mInteraction observers paused[0m
+[?25l[36m?[39m [1mUse port 8083 instead?[22m [90m┬╗[39m [90m- Use arrow-keys. Return to submit.[39m
+[36m>[39m   [36m[4mYes[39m[24m[90m[39m
+    No[90m[39m
+[2K[1G[31m├ù[39m [1mUse port 8083 instead?[22m [90m┬╗[39m Yes
+[?25h[90m[1mdebug[22m[39m [0mInteraction observers resumed[0m
+[31m[1merror[22m[39
+m [0mPrompt 
+cancelled.[0m

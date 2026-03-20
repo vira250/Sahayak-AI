@@ -9,6 +9,7 @@ import { RunAnywhere, SDKEnvironment } from '@runanywhere/core';
 import { ModelServiceProvider, registerDefaultModels } from './services/ModelService';
 import { AppColors } from './theme';
 import {
+  InitialSetup,
   HomeScreen,
   ChatScreen,
   ToolCallingScreen,
@@ -75,6 +76,11 @@ const App: React.FC = () => {
               ...TransitionPresets.SlideFromRightIOS,
             }}
           >
+            <Stack.Screen
+              name="InitialSetup"
+              component={InitialSetup}
+              options={{ headerShown: false }}
+            />
             <Stack.Screen
               name="Home"
               component={HomeScreen}
