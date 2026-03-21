@@ -4,6 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator, TransitionPresets } from '@react-navigation/stack';
 import { StatusBar } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 // Note: react-native-screens is shimmed in index.js for iOS New Architecture compatibility
 import { RunAnywhere, SDKEnvironment } from '@runanywhere/core';
 import { ModelServiceProvider, registerDefaultModels } from './services/ModelService';
@@ -53,10 +54,11 @@ const App: React.FC = () => {
   }, []);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <ModelServiceProvider>
-        <StatusBar barStyle="light-content" backgroundColor={AppColors.primaryDark} />
-        <NavigationContainer>
+    <SafeAreaProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <ModelServiceProvider>
+          <StatusBar barStyle="light-content" backgroundColor={AppColors.primaryDark} />
+          <NavigationContainer>
           <Stack.Navigator
             screenOptions={{
               headerStyle: {
@@ -89,7 +91,7 @@ const App: React.FC = () => {
             <Stack.Screen
               name="Chat"
               component={ChatScreen}
-              options={{ title: 'Chat' }}
+              options={{ title: 'Sahayak AI' }}
             />
             <Stack.Screen
               name="ToolCalling"
@@ -115,6 +117,7 @@ const App: React.FC = () => {
         </NavigationContainer>
       </ModelServiceProvider>
     </GestureHandlerRootView>
+    </SafeAreaProvider>
   );
 };
 

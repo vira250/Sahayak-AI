@@ -117,12 +117,15 @@ export const InitialSetup: React.FC<SetupScreenProps> = ({ navigation }) => {
     isLLMDownloading,
     isSTTDownloading,
     isTTSDownloading,
+    isOCRDownloading,
     isLLMLoading,
     isSTTLoading,
     isTTSLoading,
+    isOCRLoading,
     isLLMLoaded,
     isSTTLoaded,
     isTTSLoaded,
+    isOCRLoaded,
     downloadAndLoadAllModels,
   } = useModelService();
 
@@ -130,9 +133,11 @@ export const InitialSetup: React.FC<SetupScreenProps> = ({ navigation }) => {
     isLLMDownloading ||
     isSTTDownloading ||
     isTTSDownloading ||
+    isOCRDownloading ||
     isLLMLoading ||
     isSTTLoading ||
-    isTTSLoading;
+    isTTSLoading ||
+    isOCRLoading;
 
   const handleDownload = async () => {
     try {
@@ -164,6 +169,13 @@ export const InitialSetup: React.FC<SetupScreenProps> = ({ navigation }) => {
       title: 'Voice Response',
       subtitle: 'NEURAL TEXT-TO-SPEECH',
       status: isTTSLoaded ? 'done' : (isTTSDownloading || isTTSLoading ? 'loading' : 'pending'),
+    },
+    {
+      icon: '🧾',
+      iconBg: AppColors.secondaryFixed,
+      title: 'Medicine Detection',
+      subtitle: 'IMAGE OCR DETECTION',
+      status: isOCRLoaded ? 'done' : (isOCRDownloading || isOCRLoading ? 'loading' : 'pending'),
     },
   ];
 

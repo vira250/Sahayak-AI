@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import { RunAnywhere, ModelCategory } from '@runanywhere/core';
 import { LlamaCPP } from '@runanywhere/llamacpp';
 import { ONNX, ModelArtifactType } from '@runanywhere/onnx';
+import TextRecognition from '@react-native-ml-kit/text-recognition';
 
 // Model IDs - matching sample app model registry
 // See: /Users/shubhammalhotra/Desktop/test-fresh/runanywhere-sdks/examples/react-native/RunAnywhereAI/App.tsx
@@ -9,6 +10,7 @@ const MODEL_IDS = {
   llm: 'lfm2-350m-q8_0', // LiquidAI LFM2 - fast and efficient
   stt: 'sherpa-onnx-whisper-tiny.en',
   tts: 'vits-piper-en_US-lessac-medium',
+  ocr: 'paddle-ocr-det',
 } as const;
 
 interface ModelServiceState {
@@ -16,20 +18,24 @@ interface ModelServiceState {
   isLLMDownloading: boolean;
   isSTTDownloading: boolean;
   isTTSDownloading: boolean;
+  isOCRDownloading: boolean;
   
   llmDownloadProgress: number;
   sttDownloadProgress: number;
   ttsDownloadProgress: number;
+  ocrDownloadProgress: number;
   
   // Load state
   isLLMLoading: boolean;
   isSTTLoading: boolean;
   isTTSLoading: boolean;
+  isOCRLoading: boolean;
   
   // Loaded state
   isLLMLoaded: boolean;
   isSTTLoaded: boolean;
   isTTSLoaded: boolean;
+  isOCRLoaded: boolean;
   
   isVoiceAgentReady: boolean;
   
@@ -37,6 +43,11 @@ interface ModelServiceState {
   downloadAndLoadLLM: () => Promise<void>;
   downloadAndLoadSTT: () => Promise<void>;
   downloadAndLoadTTS: () => Promise<void>;
+  downloadAndLoadOCR: () => Promise<void>;
+  performOCR: (imagePath: string) => Promise<string>;
+  performSTT?: () => Promise<string>;
+  performTTS?: (text: string) => Promise<void>;
+  generateLimitedResponse: (prompt: string, maxTokens: number) => Promise<string>;
   downloadAndLoadAllModels: () => Promise<void>;
   unloadAllModels: () => Promise<void>;
 }
@@ -60,20 +71,24 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
   const [isLLMDownloading, setIsLLMDownloading] = useState(false);
   const [isSTTDownloading, setIsSTTDownloading] = useState(false);
   const [isTTSDownloading, setIsTTSDownloading] = useState(false);
+  const [isOCRDownloading, setIsOCRDownloading] = useState(false);
   
   const [llmDownloadProgress, setLLMDownloadProgress] = useState(0);
   const [sttDownloadProgress, setSTTDownloadProgress] = useState(0);
   const [ttsDownloadProgress, setTTSDownloadProgress] = useState(0);
+  const [ocrDownloadProgress, setOCRDownloadProgress] = useState(0);
   
   // Load state
   const [isLLMLoading, setIsLLMLoading] = useState(false);
   const [isSTTLoading, setIsSTTLoading] = useState(false);
   const [isTTSLoading, setIsTTSLoading] = useState(false);
+  const [isOCRLoading, setIsOCRLoading] = useState(false);
   
   // Loaded state
   const [isLLMLoaded, setIsLLMLoaded] = useState(false);
   const [isSTTLoaded, setIsSTTLoaded] = useState(false);
   const [isTTSLoaded, setIsTTSLoaded] = useState(false);
+  const [isOCRLoaded, setIsOCRLoaded] = useState(false);
   
   const isVoiceAgentReady = isLLMLoaded && isSTTLoaded && isTTSLoaded;
   
@@ -89,35 +104,67 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
   
   // Download and load LLM
   const downloadAndLoadLLM = useCallback(async () => {
-    if (isLLMDownloading || isLLMLoading) return;
+    console.log('=== Starting LLM Download/Load ===');
+    if (isLLMDownloading || isLLMLoading) {
+      console.log('Already downloading/loading, skipping');
+      return;
+    }
     
     try {
+      console.log('Checking if LLM is already downloaded...');
       const isDownloaded = await checkModelDownloaded(MODEL_IDS.llm);
+      console.log(`LLM downloaded: ${isDownloaded}`);
       
       if (!isDownloaded) {
+        console.log('Downloading LLM model...');
         setIsLLMDownloading(true);
         setLLMDownloadProgress(0);
         
         // Download with progress (per docs: progress.progress is 0-1)
         await RunAnywhere.downloadModel(MODEL_IDS.llm, (progress) => {
+          console.log(`Download progress: ${(progress.progress * 100).toFixed(1)}%`);
           setLLMDownloadProgress(progress.progress * 100);
         });
         
+        console.log('LLM download complete');
         setIsLLMDownloading(false);
+      } else {
+        console.log('LLM already downloaded, skipping download');
       }
       
       // Load the model (per docs: get localPath first, then load)
+      console.log('Loading LLM model...');
       setIsLLMLoading(true);
       const modelInfo = await RunAnywhere.getModelInfo(MODEL_IDS.llm);
+      console.log('Model info:', {
+        id: MODEL_IDS.llm,
+        localPath: modelInfo?.localPath,
+        category: (modelInfo as any)?.category,
+      });
+      
       if (modelInfo?.localPath) {
-        await RunAnywhere.loadModel(modelInfo.localPath);
+        console.log('Calling RunAnywhere.loadModel with:', modelInfo.localPath);
+        const loadResult = await RunAnywhere.loadModel(modelInfo.localPath);
+        console.log('Load result:', loadResult);
+        
+        // Verify it's loaded
+        const isActuallyLoaded = await RunAnywhere.isModelLoaded();
+        console.log('Verified with isModelLoaded():', isActuallyLoaded);
+        
         setIsLLMLoaded(true);
+        console.log('LLM model loaded and ready');
+      } else {
+        console.error('No localPath found for LLM model');
+        setIsLLMLoaded(false);
       }
       setIsLLMLoading(false);
     } catch (error) {
-      console.error('LLM download/load error:', error);
+      console.error('=== LLM Download/Load Error ===');
+      console.error('Error:', error);
+      console.error('Error message:', error instanceof Error ? error.message : String(error));
       setIsLLMDownloading(false);
       setIsLLMLoading(false);
+      setIsLLMLoaded(false);
     }
   }, [isLLMDownloading, isLLMLoading, checkModelDownloaded]);
   
@@ -187,14 +234,219 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
     }
   }, [isTTSDownloading, isTTSLoading, checkModelDownloaded]);
   
+  // Download and load OCR model (using ML Kit for text recognition)
+  const downloadAndLoadOCR = useCallback(async () => {
+    if (isOCRDownloading || isOCRLoading) return;
+
+    try {
+      // ML Kit doesn't require explicit download; just mark as loaded
+      setIsOCRLoading(true);
+      setIsOCRLoaded(true);
+      setIsOCRLoading(false);
+    } catch (error) {
+      console.error('OCR initialization error:', error);
+      setIsOCRLoading(false);
+    }
+  }, [isOCRDownloading, isOCRLoading]);
+
+  // Perform OCR on selected image path using ML Kit
+  const performOCR = useCallback(async (imagePath: string): Promise<string> => {
+    try {
+      // Use ML Kit's text recognition for OCR
+      const result = await TextRecognition.recognize(imagePath);
+      
+      if (result && result.text) {
+        return result.text;
+      }
+      
+      return 'No text found in the image.';
+    } catch (error) {
+      console.error('performOCR error:', error);
+      throw new Error(`OCR failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }, []);
+
+  // Generate a limited response from the LLM
+  const generateLimitedResponse = useCallback(async (prompt: string, maxTokens: number): Promise<string> => {
+    console.log('=== LLM Generation Start ===');
+    console.log('Local isLLMLoaded state:', isLLMLoaded);
+    console.log('Prompt length:', prompt.length);
+    console.log('Prompt preview:', prompt.substring(0, 100) + '...');
+    
+    if (!isLLMLoaded) {
+      const error = 'LLM model is not loaded yet. Please download and load it first.';
+      console.error(error);
+      throw new Error(error);
+    }
+
+    try {
+      // Double-check with SDK API
+      console.log('Checking SDK state...');
+      const actuallyLoaded = await RunAnywhere.isModelLoaded();
+      console.log('SDK isModelLoaded():', actuallyLoaded);
+      
+      if (!actuallyLoaded) {
+        console.warn('SDK says model is not loaded, but local state says it is. Attempting anyway...');
+      }
+      
+      // Get model info for debugging
+      const modelInfo = await RunAnywhere.getModelInfo(MODEL_IDS.llm);
+      console.log('Model info:', {
+        id: MODEL_IDS.llm,
+        localPath: modelInfo?.localPath,
+        category: modelInfo?.category,
+      });
+      
+      // Call generate with explicit options
+      console.log('Calling RunAnywhere.generate() with options:', { maxTokens });
+      const startTime = Date.now();
+      const response = await RunAnywhere.generate(prompt, {
+        maxTokens: Math.min(maxTokens, 500), // Cap at 500 tokens
+        temperature: 0.7,
+      });
+      const duration = Date.now() - startTime;
+      
+      console.log('=== LLM Response Received ===');
+      console.log('Duration:', duration, 'ms');
+      console.log('Response type:', typeof response);
+      console.log('Response keys:', response && typeof response === 'object' ? Object.keys(response) : 'N/A');
+      console.log('Response value:', JSON.stringify(response).substring(0, 200));
+      
+      // Try to extract text from various response formats
+      let text: string | null = null;
+      
+      if (typeof response === 'string') {
+        console.log('Response is string');
+        text = response;
+      } else if (response && typeof response === 'object') {
+        console.log('Response is object, attempting to extract text...');
+        
+        // Try various property names
+        const candidates = ['text', 'content', 'response', 'answer', 'output'];
+        for (const prop of candidates) {
+          if (prop in response && typeof (response as any)[prop] === 'string') {
+            console.log(`Found text in property "${prop}"`);
+            text = (response as any)[prop];
+            break;
+          }
+        }
+        
+        if (!text) {
+          console.log('No text property found, checking for nested structure...');
+          console.log('Full response object:', JSON.stringify(response, null, 2));
+          // Last resort - stringify and hope
+          text = JSON.stringify(response);
+        }
+      }
+      
+      if (!text) {
+        console.warn('Failed to extract text from response');
+        text = 'No response generated';
+      }
+      
+      console.log('Extracted text length:', text.length);
+      console.log('Extracted text preview:', text.substring(0, 100));
+      console.log('=== LLM Generation Complete ===');
+      
+      return text;
+    } catch (error) {
+      console.error('=== LLM Generation Error ===');
+      console.error('Error type:', error?.constructor?.name);
+      console.error('Error message:', error instanceof Error ? error.message : String(error));
+      console.error('Full error:', error);
+      throw error;
+    }
+  }, [isLLMLoaded]);
+
+  // Perform STT (Speech-to-Text) via Voice Session
+  const performSTT = useCallback(async (): Promise<string> => {
+    if (!isSTTLoaded) {
+      throw new Error('STT model not loaded');
+    }
+    
+    try {
+      console.log('Starting STT voice session...');
+      
+      // Use voice session to capture speech
+      let transcribedText = '';
+      const voiceSession = await RunAnywhere.startVoiceSession({
+        continuousMode: false,
+        autoPlayTTS: false,
+        silenceDuration: 1.5,
+      });
+
+      // Listen to events using async iteration with timeout
+      const startTime = Date.now();
+      const timeout = 10000; // 10 second timeout
+      
+      try {
+        for await (const event of voiceSession.events()) {
+          console.log('Voice event:', event.type, event);
+          
+          // Check for transcription in different event types
+          if (event.type === 'transcribed' && event.transcription) {
+            transcribedText = event.transcription;
+            console.log('Got transcribed event:', transcribedText);
+          } else if (event.type === 'turnCompleted' && event.transcription) {
+            transcribedText = event.transcription;
+            console.log('Got turnCompleted event:', transcribedText);
+            break; // End of turn
+          } else if (event.type === 'stopped') {
+            console.log('Voice session stopped');
+            break;
+          }
+          
+          // Timeout safety check
+          if (Date.now() - startTime > timeout) {
+            console.log('STT timeout reached');
+            voiceSession.stop();
+            break;
+          }
+        }
+      } catch (iterError) {
+        console.log('Voice session iteration ended:', iterError);
+      }
+
+      console.log('STT result:', transcribedText);
+      return transcribedText || 'No speech detected';
+    } catch (error) {
+      console.error('performSTT error:', error);
+      return 'Error capturing speech';
+    }
+  }, [isSTTLoaded]);
+
+  // Perform TTS (Text-to-Speech)
+  const performTTS = useCallback(async (text: string): Promise<void> => {
+    if (!isTTSLoaded) {
+      console.log('TTS model not ready');
+      return;
+    }
+    
+    try {
+      console.log('TTS triggered for:', text.substring(0, 50) + '...');
+      
+      // Use synthesize to generate speech
+      await RunAnywhere.synthesize(text, {
+        language: 'en-US',
+      });
+
+      console.log('TTS synthesis completed');
+    } catch (error) {
+      console.error('performTTS error:', error);
+      // Don't throw - TTS failure shouldn't crash the chat
+      console.log('TTS failed, continuing without audio');
+    }
+  }, [isTTSLoaded]);
+
   // Download and load all models
   const downloadAndLoadAllModels = useCallback(async () => {
     await Promise.all([
       downloadAndLoadLLM(),
       downloadAndLoadSTT(),
       downloadAndLoadTTS(),
+      downloadAndLoadOCR(),
     ]);
-  }, [downloadAndLoadLLM, downloadAndLoadSTT, downloadAndLoadTTS]);
+  }, [downloadAndLoadLLM, downloadAndLoadSTT, downloadAndLoadTTS, downloadAndLoadOCR]);
   
   // Unload all models
   const unloadAllModels = useCallback(async () => {
@@ -205,6 +457,7 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
       setIsLLMLoaded(false);
       setIsSTTLoaded(false);
       setIsTTSLoaded(false);
+      setIsOCRLoaded(false);
     } catch (error) {
       console.error('Error unloading models:', error);
     }
@@ -214,19 +467,28 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
     isLLMDownloading,
     isSTTDownloading,
     isTTSDownloading,
+    isOCRDownloading,
     llmDownloadProgress,
     sttDownloadProgress,
     ttsDownloadProgress,
+    ocrDownloadProgress,
     isLLMLoading,
     isSTTLoading,
     isTTSLoading,
+    isOCRLoading,
     isLLMLoaded,
     isSTTLoaded,
     isTTSLoaded,
+    isOCRLoaded,
     isVoiceAgentReady,
     downloadAndLoadLLM,
     downloadAndLoadSTT,
     downloadAndLoadTTS,
+    downloadAndLoadOCR,
+    performOCR,
+    performSTT,
+    performTTS,
+    generateLimitedResponse,
     downloadAndLoadAllModels,
     unloadAllModels,
   };
@@ -268,6 +530,16 @@ export const registerDefaultModels = async () => {
     modality: ModelCategory.SpeechRecognition,
     artifactType: ModelArtifactType.TarGzArchive,
     memoryRequirement: 75_000_000,
+  });
+
+  // OCR Model - PaddleOCR detection model
+  await ONNX.addModel({
+    id: MODEL_IDS.ocr,
+    name: 'Medicine Detection',
+    url: 'https://paddleocr.bj.bcebos.com/PP-OCRv3/chinese/ch_PP-OCRv3_det_slim_infer.tar',
+    modality: ModelCategory.Vision,
+    artifactType: ModelArtifactType.TarGzArchive,
+    memoryRequirement: 5_000_000,
   });
   
   // TTS Model - Piper TTS (US English - Medium quality)

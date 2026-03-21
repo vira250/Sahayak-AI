@@ -47,6 +47,10 @@
 	<string>This app uses the local network to connect to Metro bundler during development</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string></string>
+	<key>NSCameraUsageDescription</key>
+	<string>This app needs camera access to capture images for OCR.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs photo library access to select images for OCR.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>This app needs microphone access for speech recognition and voice agent features</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
