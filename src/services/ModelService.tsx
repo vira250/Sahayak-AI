@@ -103,66 +103,88 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
     }
   }, []);
   
-  // Download and load LLM
+  // Helper: download and load a single LLM model by ID
+  const tryDownloadAndLoadLLM = useCallback(async (modelId: string): Promise<boolean> => {
+    let modelPath: string | null = null;
+
+    // Check if model is already downloaded
+    const modelInfo = await RunAnywhere.getModelInfo(modelId);
+    const isDownloaded = !!modelInfo?.localPath;
+    console.log(`LLM Model ${modelId} downloaded:`, isDownloaded);
+
+    if (!isDownloaded) {
+      setIsLLMDownloading(true);
+      setLLMDownloadProgress(0);
+      console.log(`Starting download for ${modelId}...`);
+      modelPath = await RunAnywhere.downloadModel(modelId, (progress) => {
+        setLLMDownloadProgress(progress.progress * 100);
+      });
+      setIsLLMDownloading(false);
+    } else {
+      modelPath = await RunAnywhere.getModelPath(modelId);
+    }
+
+    if (!modelPath) {
+      throw new Error(`Model path not found for ${modelId}`);
+    }
+
+    // Try loading the model
+    try {
+      console.log(`Loading LLM model from path: ${modelPath}`);
+      setIsLLMLoading(true);
+      await RunAnywhere.loadModel(modelPath);
+      console.log(`Successfully loaded LLM model: ${modelId}`);
+      setIsLLMLoaded(true);
+      setIsLLMLoading(false);
+      return true;
+    } catch (loadError: any) {
+      console.warn(`Load failed for ${modelId} (${loadError?.message || loadError}), re-downloading...`);
+      // Model file might be corrupted or missing — force re-download
+      setIsLLMLoading(false);
+      setIsLLMDownloading(true);
+      setLLMDownloadProgress(0);
+      modelPath = await RunAnywhere.downloadModel(modelId, (progress) => {
+        setLLMDownloadProgress(progress.progress * 100);
+      });
+      setIsLLMDownloading(false);
+
+      if (!modelPath) {
+        throw new Error(`Re-download failed for ${modelId}`);
+      }
+
+      console.log(`Re-loading LLM model from path: ${modelPath}`);
+      setIsLLMLoading(true);
+      await RunAnywhere.loadModel(modelPath);
+      console.log(`Successfully loaded LLM model on retry: ${modelId}`);
+      setIsLLMLoaded(true);
+      setIsLLMLoading(false);
+      return true;
+    }
+  }, []);
+
+  // Download and load LLM (with fallback to alternative model)
   const downloadAndLoadLLM = useCallback(async () => {
     if (isLLMDownloading || isLLMLoading) return;
-    
-    let currentModelId = MODEL_IDS.llm;
-    
-    try {
-      let modelPath: string | null = null;
-      
-      // Check if model is downloaded
-      const modelInfo = await RunAnywhere.getModelInfo(currentModelId);
-      const isDownloaded = !!modelInfo?.localPath;
-      
-      console.log(`LLM Model ${currentModelId} downloaded:`, isDownloaded);
-      
-      if (!isDownloaded) {
-        setIsLLMDownloading(true);
-        setLLMDownloadProgress(0);
-        
-        console.log(`Starting download for ${currentModelId}...`);
-        // Download returns the local file path
-        modelPath = await RunAnywhere.downloadModel(currentModelId, (progress) => {
-          setLLMDownloadProgress(progress.progress * 100);
-        });
-        
-        setIsLLMDownloading(false);
-      } else {
-        // Already downloaded - get the path
-        modelPath = await RunAnywhere.getModelPath(currentModelId);
-      }
-      
-      // Load the model using the file path
-      if (modelPath) {
-        console.log(`Loading LLM model from path: ${modelPath}`);
-        setIsLLMLoading(true);
-        await RunAnywhere.loadModel(modelPath);
-        console.log(`Successfully loaded LLM model: ${currentModelId}`);
-        setIsLLMLoaded(true);
-        setIsLLMLoading(false);
-      } else {
-        throw new Error(`Model path not found for ${currentModelId}`);
-      }
-    } catch (error) {
-      console.error(`LLM error for ${currentModelId}:`, error);
-      
-      // Fallback logic: If primary failed and it wasn't already the fallback, try SmolLM2
-      if (currentModelId !== 'smollm2-360m-q8_0') {
-        console.log('Attempting fallback to SmolLM2...');
-        currentModelId = 'smollm2-360m-q8_0';
-        // Reset states and try again with SmolLM2
+
+    const modelsToTry = [MODEL_IDS.llm, 'lfm2-350m-q8_0'];
+
+    for (const modelId of modelsToTry) {
+      try {
+        const success = await tryDownloadAndLoadLLM(modelId);
+        if (success) return; // loaded successfully
+      } catch (error) {
+        console.error(`LLM error for ${modelId}:`, error);
+        // Reset states and try next model
         setIsLLMDownloading(false);
         setIsLLMLoading(false);
-        // Recursive call would be cleaner but let's just use the same logic or the user can click again
-        // For simplicity and to avoid infinite loops, we'll log it and let the user know.
       }
-      
-      setIsLLMDownloading(false);
-      setIsLLMLoading(false);
     }
-  }, [isLLMDownloading, isLLMLoading]);
+
+    // All models failed
+    console.error('All LLM models failed to load');
+    setIsLLMDownloading(false);
+    setIsLLMLoading(false);
+  }, [isLLMDownloading, isLLMLoading, tryDownloadAndLoadLLM]);
   
   // Download and load STT
   const downloadAndLoadSTT = useCallback(async () => {
