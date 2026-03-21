@@ -861,6 +861,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1E293B',
   },
+  ttsBtn: {
+    padding: 6,
+    backgroundColor: '#F0F4F8',
+    borderRadius: 16,
+    marginLeft: 'auto',
+  },
+  ttsIcon: {
+    fontSize: 18,
+  },
   resultDivider: {
     height: 1,
     backgroundColor: '#E2E8F0',
