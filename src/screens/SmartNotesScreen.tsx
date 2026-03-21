@@ -8,7 +8,6 @@ import {
   Platform,
   NativeModules,
 } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
 import RNFS from 'react-native-fs';
 import { RunAnywhere, VoiceSessionEvent, VoiceSessionHandle } from '@runanywhere/core';
 import { AppColors } from '../theme';
@@ -288,45 +287,54 @@ export const SmartNotesScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: AppColors.primaryDark },
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
   scrollContent: { padding: 20 },
   recordSection: {
     alignItems: 'center',
     padding: 30,
-    backgroundColor: AppColors.surfaceCard,
+    backgroundColor: '#F0F4F8',
     borderRadius: 24,
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   statusText: { color: AppColors.textPrimary, fontSize: 18, marginVertical: 15, fontWeight: '600' },
   recordButton: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: AppColors.accentOrange,
+    backgroundColor: '#1B3A5C',
     justifyContent: 'center',
     alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#1B3A5C',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
   },
   activeButton: { backgroundColor: AppColors.error },
   recordIcon: { fontSize: 32, color: '#fff' },
   resultCard: {
-    backgroundColor: AppColors.surfaceCard,
+    backgroundColor: '#F0F4F8',
     borderRadius: 16,
     padding: 16,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: AppColors.accentOrange + '40',
+    borderColor: '#E2E8F0',
   },
-  cardLabel: { color: AppColors.accentOrange, fontSize: 12, fontWeight: '700', marginBottom: 8 },
+  cardLabel: { color: '#1B3A5C', fontSize: 12, fontWeight: '700', marginBottom: 8 },
   transcriptText: { color: AppColors.textPrimary, fontSize: 14, lineHeight: 20 },
   summaryText: { color: AppColors.textPrimary, fontSize: 15, fontWeight: '500', lineHeight: 22 },
-  divider: { height: 1, backgroundColor: AppColors.textMuted + '33', marginVertical: 12 },
+  divider: { height: 1, backgroundColor: '#E2E8F0', marginVertical: 12 },
   historyTitle: { color: AppColors.textPrimary, fontSize: 20, fontWeight: '700', marginBottom: 15 },
   emptyText: { color: AppColors.textMuted, textAlign: 'center', marginTop: 20 },
   noteItem: {
-    backgroundColor: AppColors.surfaceCard + '80',
+    backgroundColor: '#F0F4F8',
     padding: 16,
     borderRadius: 12,
     marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   noteDate: { color: AppColors.textMuted, fontSize: 10, marginBottom: 4 },
   noteSummary: { color: AppColors.textSecondary, fontSize: 14 },

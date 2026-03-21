@@ -6,13 +6,11 @@ import {
   StyleSheet,
   StatusBar,
   TouchableOpacity,
-  Image,
   Dimensions,
   SafeAreaView,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { AppColors } from '../theme';
 import { RootStackParamList } from '../navigation/types';
 
 const { width } = Dimensions.get('window');
@@ -21,14 +19,42 @@ type HomeScreenProps = {
   navigation: StackNavigationProp<RootStackParamList, 'Home'>;
 };
 
-// Activity Item Component
+const CapabilityCard: React.FC<{
+  icon: string;
+  title: string;
+  subtitle: string;
+  onPress: () => void;
+  colorPrimary: string;
+  colorSecondary: string;
+  isLarge?: boolean;
+}> = ({ icon, title, subtitle, onPress, colorPrimary, colorSecondary, isLarge }) => (
+  <TouchableOpacity
+    style={[styles.capCardContainer, isLarge && styles.capCardLarge]}
+    onPress={onPress}
+    activeOpacity={0.8}
+  >
+    <LinearGradient
+      colors={[colorPrimary, colorSecondary]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.capGradient}
+    >
+      <View style={styles.capIconBg}>
+        <Text style={styles.capIcon}>{icon}</Text>
+      </View>
+      <Text style={styles.capTitle}>{title}</Text>
+      <Text style={styles.capSubtitle}>{subtitle}</Text>
+    </LinearGradient>
+  </TouchableOpacity>
+);
+
 const ActivityItem: React.FC<{
   icon: string;
   title: string;
   time: string;
   type: string;
 }> = ({ icon, title, time, type }) => (
-  <TouchableOpacity style={styles.activityItem}>
+  <TouchableOpacity style={styles.activityItem} activeOpacity={0.7}>
     <View style={styles.activityIconContainer}>
       <Text style={styles.activityIcon}>{icon}</Text>
     </View>
@@ -53,12 +79,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         </View>
         <View style={styles.statusRow}>
           <View style={styles.offlineBadge}>
-            <Text style={styles.offlineIcon}>☁️</Text>
-            <Text style={styles.offlineText}>OFFLINE</Text>
+            <View style={styles.statusDot} />
+            <Text style={styles.offlineText}>Private & Local</Text>
           </View>
-          <TouchableOpacity style={styles.powerBtn}>
-            <Text style={styles.powerIcon}>⚡</Text>
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -66,115 +89,143 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Localization & Privacy Pills */}
-        <View style={styles.pillsRow}>
-          <View style={styles.privacyPill}>
-            <Text style={styles.privacyIcon}>🔒</Text>
-            <Text style={styles.privacyText}>100% Private (On-device AI)</Text>
-          </View>
-          <View style={styles.langToggle}>
-            <TouchableOpacity style={[styles.langBtn, styles.langBtnActive]}>
-              <Text style={styles.langTextActive}>EN</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.langBtn}>
-              <Text style={styles.langText}>HI</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
         {/* Greeting Section */}
         <View style={styles.greetingContainer}>
           <Text style={styles.greetingTitle}>Namaste,</Text>
-          <Text style={styles.greetingTitle}>How can I help?</Text>
-          <Text style={styles.greetingSubtitle}>Ready to assist without internet.</Text>
+          <Text style={styles.greetingSubtitle}>How can I help you today?</Text>
         </View>
 
-        {/* Main Mic Card */}
+        {/* Quick Chat Input Launcher */}
         <TouchableOpacity 
-          style={styles.micCard} 
+          style={styles.searchLauncher} 
+          activeOpacity={0.9}
           onPress={() => navigation.navigate('Chat')}
         >
-          <LinearGradient
-            colors={['#0F2544', '#081426']}
-            style={styles.micGradient}
-          >
-            <View style={styles.micCircle}>
-              <Text style={styles.micIconLarge}>🎙️</Text>
+          <View style={styles.searchInner}>
+            <Text style={styles.searchIcon}>✨</Text>
+            <Text style={styles.searchText}>Ask Sahayak...</Text>
+            <View style={styles.searchMicBtn}>
+              <Text style={styles.searchMicIcon}>🎤</Text>
             </View>
-            <Text style={styles.micText}>TAP TO SPEAK</Text>
-          </LinearGradient>
+          </View>
         </TouchableOpacity>
 
-        {/* Grid Actions */}
+        {/* Capabilities Grid */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Capabilities</Text>
+        </View>
+        
         <View style={styles.gridRow}>
-          <TouchableOpacity style={styles.scanCard} onPress={() => navigation.navigate('Chat')}>
-            <View style={styles.gridIconContainer}>
-              <Text style={styles.gridIcon}>🔍</Text>
-            </View>
-            <Text style={styles.gridLabel}>Scan Anything</Text>
-          </TouchableOpacity>
+          <CapabilityCard
+            icon="💬"
+            title="Assistant Chat"
+            subtitle="Text & Voice AI"
+            colorPrimary="#1B3A5C"
+            colorSecondary="#2B5F8E"
+            onPress={() => navigation.navigate('Chat')}
+            isLarge
+          />
+        </View>
+        
+        <View style={styles.gridRow}>
+          <CapabilityCard
+            icon="🔍"
+            title="Visual AI"
+            subtitle="Scan & OCR"
+            colorPrimary="#F0F4F8"
+            colorSecondary="#E2E8F0"
+            onPress={() => navigation.navigate('Scan')}
+          />
+          <CapabilityCard
+            icon="📝"
+            title="Smart Notes"
+            subtitle="Record meetings"
+            colorPrimary="#F0F4F8"
+            colorSecondary="#E2E8F0"
+            onPress={() => navigation.navigate('SmartNotes')}
+          />
+        </View>
 
-          <TouchableOpacity style={styles.emergencyCard}>
-            <View style={styles.gridIconContainer}>
-              <Text style={styles.emergencyIcon}>✳️</Text>
-            </View>
-            <Text style={styles.emergencyLabel}>Emergency</Text>
-          </TouchableOpacity>
+        <View style={styles.gridRow}>
+          <CapabilityCard
+            icon="🔒"
+            title="Secure Vault"
+            subtitle="Private storage"
+            colorPrimary="#F0F4F8"
+            colorSecondary="#E2E8F0"
+            onPress={() => {}} // Placeholder
+          />
+          <CapabilityCard
+            icon="🚨"
+            title="Emergency"
+            subtitle="SOS Contacts"
+            colorPrimary="#FEE2E2"
+            colorSecondary="#FECACA"
+            onPress={() => {}} // Placeholder
+          />
         </View>
 
         {/* Recent Activity */}
         <View style={styles.activityHeader}>
-          <Text style={styles.activityHeaderText}>RECENT ACTIVITY</Text>
+          <Text style={styles.sectionTitle}>Recent Activity</Text>
           <TouchableOpacity>
-            <Text style={styles.clearAllText}>Clear all</Text>
+            <Text style={styles.clearAllText}>Clear</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.activityList}>
           <ActivityItem 
             icon="📄" 
-            title="Summarized Electricity Bill" 
+            title="Medicine Details Extracted" 
             time="2 mins ago" 
-            type="Document Scan" 
+            type="Scan" 
           />
           <ActivityItem 
-            icon="🔤" 
-            title="English to Hindi translation" 
+            icon="💬" 
+            title="Translated phrase to Hindi" 
             time="1 hour ago" 
-            type="Voice" 
+            type="Chat" 
           />
           <ActivityItem 
-            icon="📦" 
-            title="Medicine Dosage Info" 
+            icon="📝" 
+            title="Doctor's Visit Summary" 
             time="Yesterday" 
-            type="Assistant" 
+            type="Smart Note" 
           />
         </View>
         
         {/* Extra spacing for bottom nav */}
-        <View style={{ height: 80 }} />
+        <View style={{ height: 100 }} />
       </ScrollView>
 
       {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
-        <TouchableOpacity style={[styles.navItem, styles.navItemActive]}>
-          <Text style={styles.navIcon}>🎙️</Text>
-          <Text style={styles.navLabelActive}>ASSISTANT</Text>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Home')}>
+          <View style={[styles.navIconContainer, styles.navItemActive]}>
+            <Text style={styles.navIcon}>🏠</Text>
+          </View>
+          <Text style={[styles.navLabel, styles.navLabelActive]}>HOME</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity style={styles.navItem}>
-          <Text style={styles.navIcon}>🔍</Text>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Chat')}>
+          <View style={styles.navIconContainer}>
+            <Text style={styles.navIcon}>💬</Text>
+          </View>
+          <Text style={styles.navLabel}>CHAT</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Scan')}>
+          <View style={styles.navIconContainer}>
+            <Text style={styles.navIcon}>🔍</Text>
+          </View>
           <Text style={styles.navLabel}>SCAN</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.navItem}>
-          <Text style={styles.navIcon}>🔒</Text>
-          <Text style={styles.navLabel}>VAULT</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem}>
-          <Text style={styles.navIcon}>✳️</Text>
-          <Text style={styles.navLabel}>SOS</Text>
+          <View style={styles.navIconContainer}>
+            <Text style={styles.navIcon}>⚙️</Text>
+          </View>
+          <Text style={styles.navLabel}>SETTINGS</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -191,20 +242,20 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingVertical: 16,
   },
   logoRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   logoShield: {
-    fontSize: 20,
+    fontSize: 22,
     marginRight: 8,
   },
   logoText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1E293B',
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#0F2544',
     letterSpacing: -0.5,
   },
   statusRow: {
@@ -214,213 +265,170 @@ const styles = StyleSheet.create({
   offlineBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E2E8F0',
+    backgroundColor: '#E8EEF4',
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 6,
     borderRadius: 20,
-    marginRight: 10,
   },
-  offlineIcon: {
-    fontSize: 12,
-    marginRight: 4,
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10B981', // Success green indicating ready
+    marginRight: 6,
   },
   offlineText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#475569',
-  },
-  powerBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#0F172A',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  powerIcon: {
-    fontSize: 14,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#1B3A5C',
   },
   scrollContent: {
     paddingHorizontal: 20,
   },
-  pillsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginVertical: 15,
-  },
-  privacyPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E2E8F0',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-  },
-  privacyIcon: {
-    fontSize: 14,
-    marginRight: 6,
-  },
-  privacyText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#475569',
-  },
-  langToggle: {
-    flexDirection: 'row',
-    backgroundColor: '#E2E8F0',
-    borderRadius: 12,
-    padding: 3,
-  },
-  langBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 10,
-  },
-  langBtnActive: {
-    backgroundColor: '#0F172A',
-  },
-  langText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#64748B',
-  },
-  langTextActive: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#F8FAFC',
-  },
   greetingContainer: {
-    marginVertical: 20,
+    marginTop: 10,
+    marginBottom: 24,
   },
   greetingTitle: {
-    fontSize: 34,
+    fontSize: 32,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#0F2544',
     lineHeight: 40,
   },
   greetingSubtitle: {
     fontSize: 16,
     color: '#64748B',
-    marginTop: 8,
+    marginTop: 4,
     fontWeight: '500',
   },
-  micCard: {
-    width: '100%',
-    height: 180,
-    borderRadius: 24,
-    overflow: 'hidden',
-    marginTop: 10,
-    elevation: 5,
-    shadowColor: '#000',
+  searchLauncher: {
+    marginBottom: 32,
+    elevation: 4,
+    shadowColor: '#1B3A5C',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
   },
-  micGradient: {
-    flex: 1,
-    justifyContent: 'center',
+  searchInner: {
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  micCircle: {
-    width: 60,
+    backgroundColor: '#FFFFFF',
     height: 60,
     borderRadius: 30,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  searchIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  searchText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#94A3B8',
+    fontWeight: '500',
+  },
+  searchMicBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F0F4F8',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 15,
   },
-  micIconLarge: {
-    fontSize: 32,
+  searchMicIcon: {
+    fontSize: 20,
   },
-  micText: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#F8FAFC',
-    letterSpacing: 1,
+  sectionHeader: {
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F2544',
   },
   gridRow: {
     flexDirection: 'row',
-    marginTop: 20,
-    gap: 15,
+    gap: 16,
+    marginBottom: 16,
   },
-  scanCard: {
+  capCardContainer: {
     flex: 1,
+    height: 120,
+    borderRadius: 24,
+    overflow: 'hidden',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+  },
+  capCardLarge: {
     height: 140,
-    backgroundColor: '#E2E8F0',
+  },
+  capGradient: {
+    flex: 1,
+    padding: 20,
+    justifyContent: 'flex-end',
+  },
+  capIconBg: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 40,
+    height: 40,
     borderRadius: 20,
-    padding: 15,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  emergencyCard: {
-    flex: 1,
-    height: 140,
-    backgroundColor: '#B91C1C',
-    borderRadius: 20,
-    padding: 15,
-    justifyContent: 'center',
-    alignItems: 'center',
+  capIcon: {
+    fontSize: 20,
   },
-  gridIconContainer: {
-    marginBottom: 10,
-  },
-  gridIcon: {
-    fontSize: 28,
-  },
-  emergencyIcon: {
-    fontSize: 32,
-    color: '#F8FAFC',
-  },
-  gridLabel: {
-    fontSize: 14,
+  capTitle: {
+    fontSize: 18,
     fontWeight: '800',
-    color: '#1E293B',
+    color: '#0F2544',
+    marginBottom: 4,
   },
-  emergencyLabel: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#F8FAFC',
+  capSubtitle: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '500',
   },
   activityHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 30,
-    marginBottom: 15,
-  },
-  activityHeaderText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#64748B',
-    letterSpacing: 0.5,
+    marginTop: 24,
+    marginBottom: 16,
   },
   clearAllText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
-    color: '#334155',
+    color: '#1B3A5C',
   },
   activityList: {
-    backgroundColor: '#F1F5F9',
-    borderRadius: 20,
-    padding: 5,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   activityItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    padding: 12,
   },
   activityIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: '#E2E8F0',
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#F0F4F8',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
+    marginRight: 16,
   },
   activityIcon: {
     fontSize: 20,
@@ -429,53 +437,64 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   activityTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
     color: '#1E293B',
   },
   activitySubtitle: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#64748B',
     marginTop: 2,
   },
   chevron: {
     fontSize: 20,
-    color: '#94A3B8',
+    color: '#CBD5E1',
+    marginRight: 8,
   },
   bottomNav: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: 70,
+    height: 85,
     flexDirection: 'row',
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
-    paddingBottom: 5,
+    paddingBottom: Platform.OS === 'ios' ? 20 : 10,
+    paddingTop: 10,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
   },
   navItem: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  navIconContainer: {
+    width: 44,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 16,
+    marginBottom: 4,
+  },
   navItemActive: {
-    backgroundColor: '#1E3A5F',
-    margin: 5,
-    borderRadius: 15,
+    backgroundColor: '#E8EEF4',
   },
   navIcon: {
     fontSize: 20,
-    marginBottom: 2,
-  },
-  navLabelActive: {
-    fontSize: 9,
-    fontWeight: '900',
-    color: '#F1F5F9',
   },
   navLabel: {
-    fontSize: 9,
-    fontWeight: '900',
+    fontSize: 10,
+    fontWeight: '700',
     color: '#94A3B8',
+  },
+  navLabelActive: {
+    color: '#1B3A5C',
+    fontWeight: '800',
   },
 });

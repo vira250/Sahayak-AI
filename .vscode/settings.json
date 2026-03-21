@@ -1,3 +1,4 @@
 {
-    "java.configuration.updateBuildConfiguration": "interactive"
+    "java.configuration.updateBuildConfiguration": "interactive",
+    "cmake.sourceDirectory": "F:/Information Technology/Hackathon/Microsoft/Sahayak-AI/node_modules/react-native-nitro-modules/android"
 }

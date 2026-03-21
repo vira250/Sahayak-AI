@@ -1,6 +1,7 @@
 export type RootStackParamList = {
   Home: undefined;
-  Chat: undefined;
+  Chat: { roomId?: string } | undefined;
+  Scan: undefined;
   ToolCalling: undefined;
   SpeechToText: undefined;
   TextToSpeech: undefined;

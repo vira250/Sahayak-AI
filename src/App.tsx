@@ -13,6 +13,7 @@ import { AppColors } from './theme';
 import {
   HomeScreen,
   ChatScreen,
+  ScanScreen,
   ToolCallingScreen,
   SpeechToTextScreen,
   TextToSpeechScreen,
@@ -63,14 +64,14 @@ const App: React.FC = () => {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ModelServiceProvider>
-        <StatusBar barStyle="light-content" backgroundColor={AppColors.primaryDark} />
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
         <NavigationContainer>
           <Stack.Navigator
             initialRouteName="Splash"
             screenOptions={{
               headerShown: false, // Set headerShown to false globally
               cardStyle: {
-                backgroundColor: AppColors.primaryDark,
+                backgroundColor: '#FFFFFF',
               },
               // iOS-like animations
               ...TransitionPresets.SlideFromRightIOS,
@@ -93,6 +94,11 @@ const App: React.FC = () => {
               name="Chat"
               component={ChatScreen}
               options={{ title: 'Chat' }}
+            />
+            <Stack.Screen
+              name="Scan"
+              component={ScanScreen}
+              options={{ title: 'Scan' }}
             />
             <Stack.Screen
               name="ToolCalling"

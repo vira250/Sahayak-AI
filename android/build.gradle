@@ -20,6 +20,13 @@ buildscript {
 
 apply plugin: "com.facebook.react.rootproject"
 
+allprojects {
+    repositories {
+        maven {
+            url("$rootDir/../node_modules/@react-native-async-storage/async-storage/android/local_repo")
+        }
+    }
+}
 // =============================================================================
 // Fix: Force all subprojects to use the same Kotlin stdlib version
 // This prevents version mismatch errors with third-party libraries

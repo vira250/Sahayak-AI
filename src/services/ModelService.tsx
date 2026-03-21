@@ -10,6 +10,7 @@ const MODEL_IDS = {
   stt: 'sherpa-onnx-whisper-tiny.en',
   tts: 'vits-piper-en_US-lessac-medium',
   img: 'nanollava-q4_0',
+  imgProj: 'nanollava-mmproj-f16',
 } as const;
 
 interface ModelServiceState {
@@ -425,5 +426,13 @@ export const registerDefaultModels = async () => {
     name: 'NanoLLaVA Vision F16',
     url: 'https://huggingface.co/abetlen/nanollava-gguf/resolve/main/nanollava-text-model-f16.gguf',
     memoryRequirement: 700_000_000,
+  });
+
+  // Vision Projector - NanoLLaVA mmproj (needed for VLM image analysis)
+  await LlamaCPP.addModel({
+    id: MODEL_IDS.imgProj,
+    name: 'NanoLLaVA MMProj F16',
+    url: 'https://huggingface.co/abetlen/nanollava-gguf/resolve/main/nanollava-mmproj-f16.gguf',
+    memoryRequirement: 200_000_000,
   });
 };

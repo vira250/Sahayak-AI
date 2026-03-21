@@ -22,7 +22,7 @@ const ProgressItem: React.FC<{
           ) : isDownloading ? (
             <Text style={styles.cardStatus}>{Math.round(progress)}%</Text>
           ) : isLoading ? (
-            <ActivityIndicator size="small" color={AppColors.accentCyan} />
+            <ActivityIndicator size="small" color="#1B3A5C" />
           ) : (
             <ActivityIndicator size="small" color={AppColors.textMuted} />
           )}
@@ -32,7 +32,7 @@ const ProgressItem: React.FC<{
         <View 
           style={[
             styles.progressBarFill, 
-            { width: `${isLoaded ? 100 : progress}%`, backgroundColor: isLoaded ? AppColors.success : AppColors.accentCyan }
+            { width: `${isLoaded ? 100 : progress}%`, backgroundColor: isLoaded ? AppColors.success : '#1B3A5C' }
           ]} 
         />
       </View>
@@ -73,87 +73,68 @@ export const ModelDownloadScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={[AppColors.primaryDark, '#1A1A2E']}
-        style={styles.gradient}
-      >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <Text style={styles.title}>Setup Sahayak AI</Text>
-          <Text style={styles.subtitle}>
-            To provide the best experience, we need to download and load some AI models. This happens only once!
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <Text style={styles.title}>Setup Sahayak AI</Text>
+        <Text style={styles.subtitle}>
+          To provide the best experience, we need to download and load some AI models. This happens only once!
+        </Text>
+
+        <View style={styles.cardContainer}>
+          <ProgressItem
+            label="Large Language Model (Chat)"
+            progress={modelService.llmDownloadProgress}
+            isDownloading={modelService.isLLMDownloading}
+            isLoading={modelService.isLLMLoading}
+            isLoaded={modelService.isLLMLoaded}
+          />
+          <ProgressItem
+            label="Speech to Text (Listen)"
+            progress={modelService.sttDownloadProgress}
+            isDownloading={modelService.isSTTDownloading}
+            isLoading={modelService.isSTTLoading}
+            isLoaded={modelService.isSTTLoaded}
+          />
+          <ProgressItem
+            label="Text to Speech (Speak)"
+            progress={modelService.ttsDownloadProgress}
+            isDownloading={modelService.isTTSDownloading}
+            isLoading={modelService.isTTSLoading}
+            isLoaded={modelService.isTTSLoaded}
+          />
+          <ProgressItem
+            label="Vision Model (See)"
+            progress={modelService.imgDownloadProgress}
+            isDownloading={modelService.isIMGDownloading}
+            isLoading={modelService.isIMGLoading}
+            isLoaded={modelService.isIMGLoaded}
+          />
+        </View>
+
+        <View style={styles.actionContainer}>
+          {!allReady ? (
+            <TouchableOpacity
+              style={[styles.mainButton, isDownloadingAll && styles.disabledButton]}
+              onPress={handleDownloadAll}
+              disabled={isDownloadingAll}
+            >
+              <Text style={styles.buttonText}>
+                {isDownloadingAll ? 'Downloading Models...' : 'Download & Setup All'}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.mainButton, styles.successButton]}
+              onPress={handleStart}
+            >
+              <Text style={styles.buttonText}>Let's Get Started!</Text>
+            </TouchableOpacity>
+          )}
+          
+          <Text style={styles.infoText}>
+            Total size: ~500MB. Please use Wi-Fi for faster download.
           </Text>
-
-          <View style={styles.cardContainer}>
-            <ProgressItem
-              label="Large Language Model (Chat)"
-              progress={modelService.llmDownloadProgress}
-              isDownloading={modelService.isLLMDownloading}
-              isLoading={modelService.isLLMLoading}
-              isLoaded={modelService.isLLMLoaded}
-            />
-            <ProgressItem
-              label="Speech to Text (Listen)"
-              progress={modelService.sttDownloadProgress}
-              isDownloading={modelService.isSTTDownloading}
-              isLoading={modelService.isSTTLoading}
-              isLoaded={modelService.isSTTLoaded}
-            />
-            <ProgressItem
-              label="Text to Speech (Speak)"
-              progress={modelService.ttsDownloadProgress}
-              isDownloading={modelService.isTTSDownloading}
-              isLoading={modelService.isTTSLoading}
-              isLoaded={modelService.isTTSLoaded}
-            />
-            <ProgressItem
-              label="Vision Model (See)"
-              progress={modelService.imgDownloadProgress}
-              isDownloading={modelService.isIMGDownloading}
-              isLoading={modelService.isIMGLoading}
-              isLoaded={modelService.isIMGLoaded}
-            />
-          </View>
-
-          <View style={styles.actionContainer}>
-            {!allReady ? (
-              <TouchableOpacity
-                style={[styles.mainButton, isDownloadingAll && styles.disabledButton]}
-                onPress={handleDownloadAll}
-                disabled={isDownloadingAll}
-              >
-                <LinearGradient
-                  colors={[AppColors.accentCyan, AppColors.accentViolet]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.buttonGradient}
-                >
-                  <Text style={styles.buttonText}>
-                    {isDownloadingAll ? 'Downloading Models...' : 'Download & Setup All'}
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={styles.mainButton}
-                onPress={handleStart}
-              >
-                <LinearGradient
-                  colors={[AppColors.success, '#1B5E20']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.buttonGradient}
-                >
-                  <Text style={styles.buttonText}>Let's Get Started!</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            )}
-            
-            <Text style={styles.infoText}>
-              Total size: ~500MB. Please use Wi-Fi for faster download.
-            </Text>
-          </View>
-        </ScrollView>
-      </LinearGradient>
+        </View>
+      </ScrollView>
     </View>
   );
 };
@@ -161,9 +142,7 @@ export const ModelDownloadScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  gradient: {
-    flex: 1,
+    backgroundColor: '#FFFFFF',
   },
   scrollContent: {
     padding: 24,
@@ -173,13 +152,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: '700',
-    color: AppColors.textPrimary,
+    color: '#1E293B',
     textAlign: 'center',
     marginBottom: 12,
   },
   subtitle: {
     fontSize: 16,
-    color: AppColors.textSecondary,
+    color: '#64748B',
     textAlign: 'center',
     marginBottom: 40,
     lineHeight: 24,
@@ -190,12 +169,12 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   card: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: '#F0F4F8',
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: '#E2E8F0',
   },
   cardHeader: {
     flexDirection: 'row',
@@ -210,17 +189,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cardLabel: {
-    color: AppColors.textPrimary,
+    color: '#1E293B',
     fontSize: 16,
     fontWeight: '600',
   },
   cardStatus: {
-    color: AppColors.textSecondary,
+    color: '#64748B',
     fontSize: 14,
   },
   progressBarBg: {
     height: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: '#E2E8F0',
     borderRadius: 4,
     overflow: 'hidden',
   },
@@ -236,20 +215,20 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 56,
     borderRadius: 28,
-    overflow: 'hidden',
-    elevation: 8,
-    shadowColor: AppColors.accentCyan,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  buttonGradient: {
-    flex: 1,
+    backgroundColor: '#1B3A5C',
     justifyContent: 'center',
     alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#1B3A5C',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+  },
+  successButton: {
+    backgroundColor: AppColors.success,
   },
   buttonText: {
-    color: AppColors.textPrimary,
+    color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '700',
   },
@@ -257,7 +236,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   infoText: {
-    color: AppColors.textSecondary,
+    color: '#64748B',
     fontSize: 13,
     marginTop: 16,
     opacity: 0.6,

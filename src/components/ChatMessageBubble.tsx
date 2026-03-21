@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { AppColors } from '../theme';
 
 export interface ChatMessage {
@@ -15,13 +15,19 @@ export interface ChatMessage {
 interface ChatMessageBubbleProps {
   message: ChatMessage;
   isStreaming?: boolean;
+  onPlayTTS?: () => void;
 }
 
 export const ChatMessageBubble: React.FC<ChatMessageBubbleProps> = ({
   message,
   isStreaming = false,
+  onPlayTTS,
 }) => {
   const { text, isUser, tokensPerSecond, totalTokens, isError, wasCancelled } = message;
+
+  // Render attachment styling if the text starts with the specific image context prefix
+  const hasAttachment = text.startsWith('[Attached Image Context]\n');
+  const displayText = hasAttachment ? text.replace('[Attached Image Context]\n', '') : text;
 
   return (
     <View
@@ -37,6 +43,12 @@ export const ChatMessageBubble: React.FC<ChatMessageBubbleProps> = ({
           isError && styles.errorBubble,
         ]}
       >
+        {hasAttachment && isUser && (
+          <View style={styles.attachmentWrapper}>
+            <Text style={styles.attachmentIcon}>🖼️</Text>
+            <Text style={styles.attachmentLabel}>Image Attached</Text>
+          </View>
+        )}
         <Text
           style={[
             styles.text,
@@ -44,10 +56,10 @@ export const ChatMessageBubble: React.FC<ChatMessageBubbleProps> = ({
             isError && styles.errorText,
           ]}
         >
-          {text}
+          {displayText}
         </Text>
 
-        {!isUser && !isStreaming && (tokensPerSecond || totalTokens) && (
+        {!isUser && !isStreaming && (
           <View style={styles.metricsContainer}>
             {tokensPerSecond && (
               <Text style={styles.metrics}>
@@ -56,6 +68,11 @@ export const ChatMessageBubble: React.FC<ChatMessageBubbleProps> = ({
             )}
             {totalTokens && (
               <Text style={styles.metrics}>📊 {totalTokens} tokens</Text>
+            )}
+            {onPlayTTS && (
+              <TouchableOpacity onPress={onPlayTTS} style={styles.ttsButton} activeOpacity={0.6}>
+                <Text style={styles.ttsIcon}>🔊</Text>
+              </TouchableOpacity>
             )}
           </View>
         )}
@@ -88,18 +105,18 @@ const styles = StyleSheet.create({
     marginVertical: 2,
   },
   userBubble: {
-    backgroundColor: AppColors.accentCyan,
+    backgroundColor: AppColors.navyMid,
     borderBottomRightRadius: 4,
   },
   assistantBubble: {
     backgroundColor: AppColors.surfaceCard,
     borderBottomLeftRadius: 4,
     borderWidth: 1,
-    borderColor: AppColors.textMuted + '20',
+    borderColor: '#E2E8F0',
   },
   errorBubble: {
-    backgroundColor: AppColors.error + '20',
-    borderColor: AppColors.error + '40',
+    backgroundColor: AppColors.error + '10',
+    borderColor: AppColors.error + '30',
   },
   text: {
     fontSize: 15,
@@ -130,7 +147,33 @@ const styles = StyleSheet.create({
   },
   streamingIndicator: {
     fontSize: 16,
-    color: AppColors.accentCyan,
+    color: AppColors.navyMid,
     marginTop: 2,
+  },
+  attachmentWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginBottom: 8,
+    alignSelf: 'flex-start',
+  },
+  attachmentIcon: {
+    fontSize: 12,
+    marginRight: 6,
+  },
+  attachmentLabel: {
+    fontSize: 11,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  ttsButton: {
+    marginLeft: 'auto',
+    paddingHorizontal: 6,
+  },
+  ttsIcon: {
+    fontSize: 14,
   },
 });

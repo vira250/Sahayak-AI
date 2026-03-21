@@ -66,7 +66,7 @@ export const SplashScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={[AppColors.primaryDark, '#1A1A2E', '#16213E']}
+        colors={['#FFFFFF', '#EEF2F7', '#E8EEF4']}
         style={styles.gradient}
       >
         <Animated.View 
@@ -75,14 +75,9 @@ export const SplashScreen: React.FC = () => {
             { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }
           ]}
         >
-          <LinearGradient
-            colors={[AppColors.accentCyan, AppColors.accentViolet]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.logoCircle}
-          >
+          <View style={styles.logoCircle}>
             <Text style={styles.logoText}>SA</Text>
-          </LinearGradient>
+          </View>
           
           <Text style={styles.appName}>Sahayak AI</Text>
           <Text style={styles.tagline}>Your On-Device AI Companion</Text>
@@ -113,30 +108,31 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
+    backgroundColor: '#1B3A5C',
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 20,
-    shadowColor: AppColors.accentCyan,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 15,
+    elevation: 10,
+    shadowColor: '#1B3A5C',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
   },
   logoText: {
     fontSize: 48,
     fontWeight: '900',
-    color: AppColors.textPrimary,
+    color: '#FFFFFF',
     letterSpacing: 2,
   },
   appName: {
     fontSize: 42,
     fontWeight: '700',
-    color: AppColors.textPrimary,
+    color: '#1E293B',
     marginTop: 24,
     letterSpacing: 1,
   },
   tagline: {
     fontSize: 16,
-    color: AppColors.textSecondary,
+    color: '#64748B',
     marginTop: 8,
     opacity: 0.8,
   },
@@ -146,12 +142,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   version: {
-    color: AppColors.textSecondary,
+    color: '#94A3B8',
     fontSize: 12,
     opacity: 0.5,
   },
   poweredBy: {
-    color: AppColors.textSecondary,
+    color: '#64748B',
     fontSize: 14,
     marginTop: 4,
     fontWeight: '500',
