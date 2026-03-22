@@ -6,7 +6,7 @@ import { ONNX, ModelArtifactType } from '@runanywhere/onnx';
 // Model IDs - matching sample app model registry
 // See: /Users/shubhammalhotra/Desktop/test-fresh/runanywhere-sdks/examples/react-native/RunAnywhereAI/App.tsx
 const MODEL_IDS = {
-  llm: 'smollm2-360m-q8_0',
+  llm: 'qwen2.5-1.5b-instruct-q4km',
   stt: 'sherpa-onnx-whisper-tiny.en',
   tts: 'vits-piper-en_US-lessac-medium',
   img: 'nanollava-q4_0',
@@ -19,26 +19,26 @@ interface ModelServiceState {
   isSTTDownloading: boolean;
   isTTSDownloading: boolean;
   isIMGDownloading: boolean;
-  
+
   llmDownloadProgress: number;
   sttDownloadProgress: number;
   ttsDownloadProgress: number;
   imgDownloadProgress: number;
-  
+
   // Load state
   isLLMLoading: boolean;
   isSTTLoading: boolean;
   isTTSLoading: boolean;
   isIMGLoading: boolean;
-  
+
   // Loaded state
   isLLMLoaded: boolean;
   isSTTLoaded: boolean;
   isTTSLoaded: boolean;
   isIMGLoaded: boolean;
-  
+
   isVoiceAgentReady: boolean;
-  
+
   // Actions
   downloadAndLoadLLM: () => Promise<void>;
   downloadAndLoadSTT: () => Promise<void>;
@@ -73,27 +73,27 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
   const [isSTTDownloading, setIsSTTDownloading] = useState(false);
   const [isTTSDownloading, setIsTTSDownloading] = useState(false);
   const [isIMGDownloading, setIsIMGDownloading] = useState(false);
-  
+
   const [llmDownloadProgress, setLLMDownloadProgress] = useState(0);
   const [sttDownloadProgress, setSTTDownloadProgress] = useState(0);
   const [ttsDownloadProgress, setTTSDownloadProgress] = useState(0);
   const [imgDownloadProgress, setIMGDownloadProgress] = useState(0);
-  
+
   // Load state
   const [isLLMLoading, setIsLLMLoading] = useState(false);
   const [isSTTLoading, setIsSTTLoading] = useState(false);
   const [isTTSLoading, setIsTTSLoading] = useState(false);
   const [isIMGLoading, setIsIMGLoading] = useState(false);
-  
+
   // Loaded state
   const [isLLMLoaded, setIsLLMLoaded] = useState(false);
   const [isSTTLoaded, setIsSTTLoaded] = useState(false);
   const [isTTSLoaded, setIsTTSLoaded] = useState(false);
   const [isIMGLoaded, setIsIMGLoaded] = useState(false);
   const [hasCompletedSetup, setHasCompletedSetup] = useState(false);
-  
+
   const isVoiceAgentReady = isLLMLoaded && isSTTLoaded && isTTSLoaded;
-  
+
   // Check if model is downloaded (per docs: use getModelInfo and check localPath)
   const checkModelDownloaded = useCallback(async (modelId: string): Promise<boolean> => {
     try {
@@ -103,7 +103,7 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
       return false;
     }
   }, []);
-  
+
   // Helper: download and load a single LLM model by ID
   const tryDownloadAndLoadLLM = useCallback(async (modelId: string): Promise<boolean> => {
     let modelPath: string | null = null;
@@ -167,7 +167,7 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
   const downloadAndLoadLLM = useCallback(async () => {
     if (isLLMDownloading || isLLMLoading) return;
 
-    const modelsToTry = [MODEL_IDS.llm, 'lfm2-350m-q8_0'];
+    const modelsToTry = [MODEL_IDS.llm, 'smollm2-360m-q8_0', 'lfm2-350m-q8_0'];
 
     for (const modelId of modelsToTry) {
       try {
@@ -186,28 +186,28 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
     setIsLLMDownloading(false);
     setIsLLMLoading(false);
   }, [isLLMDownloading, isLLMLoading, tryDownloadAndLoadLLM]);
-  
+
   // Download and load STT
   const downloadAndLoadSTT = useCallback(async () => {
     if (isSTTDownloading || isSTTLoading) return;
-    
+
     try {
       let modelPath: string | null = null;
       const isDownloaded = await checkModelDownloaded(MODEL_IDS.stt);
-      
+
       if (!isDownloaded) {
         setIsSTTDownloading(true);
         setSTTDownloadProgress(0);
-        
+
         modelPath = await RunAnywhere.downloadModel(MODEL_IDS.stt, (progress) => {
           setSTTDownloadProgress(progress.progress * 100);
         });
-        
+
         setIsSTTDownloading(false);
       } else {
         modelPath = await RunAnywhere.getModelPath(MODEL_IDS.stt);
       }
-      
+
       if (modelPath) {
         setIsSTTLoading(true);
         await RunAnywhere.loadSTTModel(modelPath, 'whisper');
@@ -222,28 +222,28 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
       setIsSTTLoading(false);
     }
   }, [isSTTDownloading, isSTTLoading, checkModelDownloaded]);
-  
+
   // Download and load TTS
   const downloadAndLoadTTS = useCallback(async () => {
     if (isTTSDownloading || isTTSLoading) return;
-    
+
     try {
       let modelPath: string | null = null;
       const isDownloaded = await checkModelDownloaded(MODEL_IDS.tts);
-      
+
       if (!isDownloaded) {
         setIsTTSDownloading(true);
         setTTSDownloadProgress(0);
-        
+
         modelPath = await RunAnywhere.downloadModel(MODEL_IDS.tts, (progress) => {
           setTTSDownloadProgress(progress.progress * 100);
         });
-        
+
         setIsTTSDownloading(false);
       } else {
         modelPath = await RunAnywhere.getModelPath(MODEL_IDS.tts);
       }
-      
+
       if (modelPath) {
         setIsTTSLoading(true);
         await RunAnywhere.loadTTSModel(modelPath, 'piper');
@@ -258,27 +258,27 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
       setIsTTSLoading(false);
     }
   }, [isTTSDownloading, isTTSLoading, checkModelDownloaded]);
-  
+
   // Download and load Image Model
   // NOTE: llama.cpp can only hold one model at a time.
   // The IMG model is downloaded only and loaded on-demand when needed for vision tasks.
   const downloadAndLoadIMG = useCallback(async () => {
     if (isIMGDownloading || isIMGLoading) return;
-    
+
     try {
       const isDownloaded = await checkModelDownloaded(MODEL_IDS.img);
-      
+
       if (!isDownloaded) {
         setIsIMGDownloading(true);
         setIMGDownloadProgress(0);
-        
+
         await RunAnywhere.downloadModel(MODEL_IDS.img, (progress) => {
           setIMGDownloadProgress(progress.progress * 100);
         });
-        
+
         setIsIMGDownloading(false);
       }
-      
+
       // Mark as ready (download-only; loaded on-demand for vision tasks)
       setIsIMGLoaded(true);
       setIsIMGLoading(false);
@@ -291,10 +291,10 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
       setIsIMGLoading(false);
     }
   }, [isIMGDownloading, isIMGLoading, checkModelDownloaded]);
-  
+
   // Check if all models are downloaded
   const [isAllDownloaded, setIsAllDownloadedState] = useState(false);
-  
+
   const checkAllModelsDownloaded = useCallback(async (): Promise<boolean> => {
     const llm = await checkModelDownloaded(MODEL_IDS.llm);
     const stt = await checkModelDownloaded(MODEL_IDS.stt);
@@ -304,9 +304,9 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
     setIsAllDownloadedState(all);
     return all;
   }, [checkModelDownloaded]);
-  
+
   const isSetupReady = isAllDownloaded || hasCompletedSetup;
-  
+
   // Download and load all models
   const downloadAndLoadAllModels = useCallback(async () => {
     await Promise.all([
@@ -316,7 +316,7 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
       downloadAndLoadIMG(),
     ]);
   }, [downloadAndLoadLLM, downloadAndLoadSTT, downloadAndLoadTTS, downloadAndLoadIMG]);
-  
+
   // Unload all models
   const unloadAllModels = useCallback(async () => {
     try {
@@ -331,14 +331,14 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
       console.error('Error unloading models:', error);
     }
   }, []);
-  
+
   // Mark setup as complete
   const completeSetup = useCallback(async () => {
     // We can also use AsyncStorage here if needed, but for now 
     // we'll rely on the isAllDownloaded check and this memory state
     setHasCompletedSetup(true);
   }, []);
-  
+
   const value: ModelServiceState = {
     isLLMDownloading,
     isSTTDownloading,
@@ -369,7 +369,7 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
     completeSetup,
     isAllDownloaded,
   };
-  
+
   return (
     <ModelServiceContext.Provider value={value}>
       {children}
@@ -382,22 +382,30 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
  * Models match the sample app: /Users/shubhammalhotra/Desktop/test-fresh/runanywhere-sdks/examples/react-native/RunAnywhereAI/App.tsx
  */
 export const registerDefaultModels = async () => {
-  // LLM Model - SmolLM2 360M (standard Llama-based architecture, highly compatible)
+  // LLM Model - Qwen2.5 1.5B Instruct Q4_K_M (~1GB, excellent instruction following)
   await LlamaCPP.addModel({
     id: MODEL_IDS.llm,
+    name: 'Qwen2.5 1.5B Instruct Q4_K_M',
+    url: 'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf',
+    memoryRequirement: 1_200_000_000,
+  });
+
+  // Fallback: SmolLM2 360M (smaller, lower quality but works on low-RAM devices)
+  await LlamaCPP.addModel({
+    id: 'smollm2-360m-q8_0',
     name: 'SmolLM2 360M Q8_0',
     url: 'https://huggingface.co/prithivMLmods/SmolLM2-360M-GGUF/resolve/main/SmolLM2-360M.Q8_0.gguf',
     memoryRequirement: 500_000_000,
   });
-  
-  // Also add LiquidAI LFM2 as alternative if supported
+
+  // Fallback: LiquidAI LFM2 350M
   await LlamaCPP.addModel({
     id: 'lfm2-350m-q8_0',
     name: 'LiquidAI LFM2 350M Q8_0',
     url: 'https://huggingface.co/LiquidAI/LFM2-350M-GGUF/resolve/main/LFM2-350M-Q8_0.gguf',
     memoryRequirement: 400_000_000,
   });
-  
+
   // STT Model - Sherpa Whisper Tiny English
   // Using tar.gz from RunanywhereAI/sherpa-onnx for fast native extraction
   await ONNX.addModel({
@@ -408,7 +416,7 @@ export const registerDefaultModels = async () => {
     artifactType: ModelArtifactType.TarGzArchive,
     memoryRequirement: 75_000_000,
   });
-  
+
   // TTS Model - Piper TTS (US English - Medium quality)
   await ONNX.addModel({
     id: MODEL_IDS.tts,
@@ -418,7 +426,7 @@ export const registerDefaultModels = async () => {
     artifactType: ModelArtifactType.TarGzArchive,
     memoryRequirement: 65_000_000,
   });
-  
+
   // Image/Vision Model - NanoLLaVA (tiny multimodal, ~600MB text model)
   // Downloaded only; loaded on-demand when user opens vision features
   await LlamaCPP.addModel({

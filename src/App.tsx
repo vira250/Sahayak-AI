@@ -1,7 +1,7 @@
 import 'react-native-gesture-handler'; // Must be at the top!
 import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
-import { createStackNavigator, TransitionPresets } from '@react-navigation/stack';
+import { createStackNavigator, TransitionPresets, CardStyleInterpolators } from '@react-navigation/stack';
 import { StatusBar } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 // Note: react-native-screens is shimmed in index.js for iOS New Architecture compatibility
@@ -12,6 +12,7 @@ import { ModelServiceProvider, registerDefaultModels } from './services/ModelSer
 import { AppColors } from './theme';
 import {
   HomeScreen,
+  HistoryScreen,
   ChatScreen,
   ScanScreen,
   ToolCallingScreen,
@@ -69,27 +70,50 @@ const App: React.FC = () => {
           <Stack.Navigator
             initialRouteName="Splash"
             screenOptions={{
-              headerShown: false, // Set headerShown to false globally
+              headerShown: false,
               cardStyle: {
                 backgroundColor: '#FFFFFF',
               },
-              // iOS-like animations
+              // Default: iOS-like slide for push screens
               ...TransitionPresets.SlideFromRightIOS,
             }}
           >
             <Stack.Screen
               name="Splash"
               component={SplashScreen}
+              options={{ ...TransitionPresets.FadeFromBottomAndroid }}
             />
             <Stack.Screen
               name="ModelDownload"
               component={ModelDownloadScreen}
+              options={{ ...TransitionPresets.FadeFromBottomAndroid }}
             />
+            {/* Tab-like screens: instant fade for bottom nav switching */}
             <Stack.Screen
               name="Home"
               component={HomeScreen}
-              options={{ headerShown: false }}
+              options={{
+                headerShown: false,
+                cardStyleInterpolator: CardStyleInterpolators.forNoAnimation,
+                transitionSpec: {
+                  open: { animation: 'timing', config: { duration: 0 } },
+                  close: { animation: 'timing', config: { duration: 0 } },
+                },
+              }}
             />
+            <Stack.Screen
+              name="History"
+              component={HistoryScreen}
+              options={{
+                headerShown: false,
+                cardStyleInterpolator: CardStyleInterpolators.forNoAnimation,
+                transitionSpec: {
+                  open: { animation: 'timing', config: { duration: 0 } },
+                  close: { animation: 'timing', config: { duration: 0 } },
+                },
+              }}
+            />
+            {/* Push screens: slide animation */}
             <Stack.Screen
               name="Chat"
               component={ChatScreen}

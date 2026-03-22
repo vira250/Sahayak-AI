@@ -22,7 +22,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import TextRecognition from '@react-native-ml-kit/text-recognition';
 import { useModelService } from '../services/ModelService';
 import { RootStackParamList } from '../navigation/types';
-import { RoomService } from '../services/RoomService';
+import { ChatBackend } from '../services/ChatBackendBridge';
 import { playBase64Audio } from '../utils/AudioPlayer';
 
 const { width } = Dimensions.get('window');
@@ -346,7 +346,7 @@ export const ScanScreen: React.FC = () => {
 
       setStatusMessage('Creating chat room...');
       const ocrText = result.text;
-      const roomId = await RoomService.createRoom(ocrText);
+      const roomId = await ChatBackend.createRoom(ocrText);
       
       handleReset();
       navigation.navigate('Chat', { roomId });

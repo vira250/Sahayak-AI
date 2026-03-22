@@ -20,6 +20,8 @@ class MainApplication : Application(), ReactApplication {
             PackageList(this).packages.apply {
               // Add our custom NativeAudioModule for STT/TTS audio recording and playback
               add(NativeAudioPackage())
+              // Add ChatBackendModule for room management and pipeline orchestration
+              add(ChatBackendPackage())
             }
 
         override fun getJSMainModuleName(): String = "index"

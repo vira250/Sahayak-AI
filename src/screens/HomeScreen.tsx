@@ -20,6 +20,20 @@ type HomeScreenProps = {
   navigation: StackNavigationProp<RootStackParamList, 'Home'>;
 };
 
+// Helper to format timestamp to relative time
+const timeAgo = (timestamp: number): string => {
+  const now = Date.now();
+  const diff = now - timestamp;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return 'Yesterday';
+  return `${days} days ago`;
+};
+
 const CapabilityCard: React.FC<{
   icon: string;
   title: string;
@@ -49,29 +63,12 @@ const CapabilityCard: React.FC<{
   </TouchableOpacity>
 );
 
-const ActivityItem: React.FC<{
-  icon: string;
-  title: string;
-  time: string;
-  type: string;
-}> = ({ icon, title, time, type }) => (
-  <TouchableOpacity style={styles.activityItem} activeOpacity={0.7}>
-    <View style={styles.activityIconContainer}>
-      <Text style={styles.activityIcon}>{icon}</Text>
-    </View>
-    <View style={styles.activityTextContainer}>
-      <Text style={styles.activityTitle}>{title}</Text>
-      <Text style={styles.activitySubtitle}>{time} • {type}</Text>
-    </View>
-    <Text style={styles.chevron}>›</Text>
-  </TouchableOpacity>
-);
-
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
-      
+
       {/* Top Header Bar */}
       <View style={styles.topBar}>
         <View style={styles.logoRow}>
@@ -86,7 +83,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         </View>
       </View>
 
-      <ScrollView 
+      <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
@@ -97,14 +94,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         </View>
 
         {/* Quick Chat Input Launcher */}
-        <TouchableOpacity 
-          style={styles.searchLauncher} 
+        <TouchableOpacity
+          style={styles.searchLauncher}
           activeOpacity={0.9}
           onPress={() => navigation.navigate('Chat')}
         >
           <View style={styles.searchInner}>
             <Text style={styles.searchIcon}>✨</Text>
-            <Text style={styles.searchText}>Ask Sahayak...</Text>
+            <Text style={styles.searchText}>Ask Dr. Sahayak...</Text>
             <View style={styles.searchMicBtn}>
               <Text style={styles.searchMicIcon}>🎤</Text>
             </View>
@@ -115,7 +112,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Capabilities</Text>
         </View>
-        
+
         <View style={styles.gridRow}>
           <CapabilityCard
             icon="💬"
@@ -127,7 +124,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             isLarge
           />
         </View>
-        
+
         <View style={styles.gridRow}>
           <CapabilityCard
             icon="🔍"
@@ -154,7 +151,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             subtitle="Private storage"
             colorPrimary="#F0F4F8"
             colorSecondary="#E2E8F0"
-            onPress={() => {}} // Placeholder
+            onPress={() => {}}
           />
           <CapabilityCard
             icon="🚨"
@@ -162,39 +159,24 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             subtitle="SOS Contacts"
             colorPrimary="#FEE2E2"
             colorSecondary="#FECACA"
-            onPress={() => {}} // Placeholder
+            onPress={() => {}}
           />
         </View>
 
-        {/* Recent Activity */}
+        {/* View History Button */}
         <View style={styles.activityHeader}>
-          <Text style={styles.sectionTitle}>Recent Activity</Text>
-          <TouchableOpacity>
-            <Text style={styles.clearAllText}>Clear</Text>
-          </TouchableOpacity>
+          <Text style={styles.sectionTitle}>Recent Chats</Text>
         </View>
+        <TouchableOpacity
+          style={styles.viewHistoryButton}
+          activeOpacity={0.8}
+          onPress={() => navigation.navigate('History')}
+        >
+          <Text style={styles.viewHistoryIcon}>🕘</Text>
+          <Text style={styles.viewHistoryText}>View Chat History</Text>
+          <Text style={styles.viewHistoryArrow}>→</Text>
+        </TouchableOpacity>
 
-        <View style={styles.activityList}>
-          <ActivityItem 
-            icon="📄" 
-            title="Medicine Details Extracted" 
-            time="2 mins ago" 
-            type="Scan" 
-          />
-          <ActivityItem 
-            icon="💬" 
-            title="Translated phrase to Hindi" 
-            time="1 hour ago" 
-            type="Chat" 
-          />
-          <ActivityItem 
-            icon="📝" 
-            title="Doctor's Visit Summary" 
-            time="Yesterday" 
-            type="Smart Note" 
-          />
-        </View>
-        
         {/* Extra spacing for bottom nav */}
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -207,12 +189,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           </View>
           <Text style={[styles.navLabel, styles.navLabelActive]}>HOME</Text>
         </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Chat')}>
+
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('History')}>
           <View style={styles.navIconContainer}>
-            <Text style={styles.navIcon}>💬</Text>
+            <Text style={styles.navIcon}>🕘</Text>
           </View>
-          <Text style={styles.navLabel}>CHAT</Text>
+          <Text style={styles.navLabel}>HISTORY</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Scan')}>
@@ -244,6 +226,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 40) + 8 : 16,
   },
   logoRow: {
     flexDirection: 'row',
@@ -275,7 +258,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#10B981', // Success green indicating ready
+    backgroundColor: '#10B981',
     marginRight: 6,
   },
   offlineText: {
@@ -405,52 +388,35 @@ const styles = StyleSheet.create({
     marginTop: 24,
     marginBottom: 16,
   },
-  clearAllText: {
-    fontSize: 14,
+  viewHistoryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+  },
+  viewHistoryIcon: {
+    fontSize: 22,
+    marginRight: 14,
+  },
+  viewHistoryText: {
+    flex: 1,
+    fontSize: 15,
     fontWeight: '700',
     color: '#1B3A5C',
   },
-  activityList: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  activityItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-  },
-  activityIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#F0F4F8',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  activityIcon: {
-    fontSize: 20,
-  },
-  activityTextContainer: {
-    flex: 1,
-  },
-  activityTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1E293B',
-  },
-  activitySubtitle: {
-    fontSize: 13,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  chevron: {
-    fontSize: 20,
-    color: '#CBD5E1',
-    marginRight: 8,
+  viewHistoryArrow: {
+    fontSize: 18,
+    color: '#94A3B8',
+    fontWeight: '600',
   },
   bottomNav: {
     position: 'absolute',

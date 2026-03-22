@@ -1,4 +1,5 @@
 export * from './HomeScreen';
+export * from './HistoryScreen';
 export * from './ChatScreen';
 export * from './ScanScreen';
 export * from './ToolCallingScreen';

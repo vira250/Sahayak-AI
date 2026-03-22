@@ -23,7 +23,7 @@ import { RootStackParamList } from '../navigation/types';
 import { RunAnywhere, VoiceSessionEvent, VoiceSessionHandle } from '@runanywhere/core';
 import { useModelService } from '../services/ModelService';
 import { ChatMessage, ModelLoaderWidget } from '../components';
-import { RoomService } from '../services/RoomService';
+import { ChatBackend } from '../services/ChatBackendBridge';
 import { playBase64Audio } from '../utils/AudioPlayer';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -209,10 +209,10 @@ const SahayakMessageBubble: React.FC<{
       <View style={bubbleStyles.userRow}>
         <View style={bubbleStyles.userBubble}>
           {hasImageContext && (
-             <View style={bubbleStyles.attachmentBadge}>
-               <Text style={bubbleStyles.attachmentIcon}>📸</Text>
-               <Text style={bubbleStyles.attachmentLabel}>Image Context Attached</Text>
-             </View>
+            <View style={bubbleStyles.attachmentBadge}>
+              <Text style={bubbleStyles.attachmentIcon}>📸</Text>
+              <Text style={bubbleStyles.attachmentLabel}>Image Context Attached</Text>
+            </View>
           )}
           <Text style={bubbleStyles.userText}>{displayText}</Text>
           <Text style={bubbleStyles.timestamp}>
@@ -241,7 +241,7 @@ const SahayakMessageBubble: React.FC<{
         <View style={bubbleStyles.aiFooter}>
           <Text style={bubbleStyles.aiLabel}>Sahayak AI</Text>
           {(!isStreaming) && (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={bubbleStyles.speakButton}
               onPress={() => onPlayTTS(message.text)}
             >
@@ -319,7 +319,7 @@ const StagedImagePreview: React.FC<{
 export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => {
   // All hooks unconditionally first
   const modelService = useModelService();
-  const roomId = route.params?.roomId;
+  const [roomId, setRoomId] = useState<string | undefined>(route.params?.roomId);
 
   const [messages, setMessages] = useState<ExtendedChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
@@ -339,12 +339,12 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
   const responseRef = useRef('');
   const voiceSessionRef = useRef<VoiceSessionHandle | null>(null);
 
-  // Load old messages from RoomService
+  // Load old messages from Kotlin backend
   useEffect(() => {
     const loadMessages = async () => {
       if (roomId) {
-        const history = await RoomService.getRoomHistory(roomId);
-        const formatted: ExtendedChatMessage[] = history.map((m: ChatMessage) => ({
+        const history = await ChatBackend.getRoomHistory(roomId);
+        const formatted: ExtendedChatMessage[] = history.map((m) => ({
           text: m.text,
           isUser: m.isUser,
           timestamp: new Date(m.timestamp || Date.now()),
@@ -438,12 +438,15 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
     maxWidth: 2000,
   };
 
+  // OCR processing — text recognition + Kotlin-side cleaning
   const processImageForOCR = async (uri: string) => {
     try {
       setVoiceStatus('Extracting text from image...');
       const result = await TextRecognition.recognize(uri);
       if (result && result.text) {
-        setStagedImageContext(result.text);
+        // Clean OCR text via Kotlin backend
+        const cleaned = await ChatBackend.cleanOCRText(result.text);
+        setStagedImageContext(cleaned);
         setVoiceStatus('AI READY');
       } else {
         setStagedImageContext('');
@@ -486,10 +489,10 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
         Alert.alert('TTS Not Loaded', 'Please wait for Text-to-Speech model to load.');
         return;
       }
-      
+
       const cleanText = text.replace(/\[Attached Image Context\]\n/g, '');
       const synthResult = await RunAnywhere.synthesize(cleanText, { voice: '0', rate: 1.0 });
-      
+
       if (synthResult.audioData) {
         await playBase64Audio(synthResult.audioData);
       }
@@ -505,37 +508,36 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
     if (!text && !hasImage) return;
     if (isGenerating) return;
 
-    // The text the user sees in the bubble (clean, no OCR dump)
+    // The text the user sees in the bubble
     const displayText = text || (hasImage ? 'Sent an image' : '');
 
-    // The text sent to the LLM (includes silent OCR context if available)
-    let llmUserText = text || 'Please analyze and describe what you see in the attached context.';
-    if (stagedImageContext) {
-      llmUserText = `[Image OCR Context]\n${stagedImageContext}\n[End Image Context]\n\n${llmUserText}`;
-    }
-
-    // Add user message to screen (display text only — no OCR dump visible)
+    // Add user message to screen
     const userMsg: ExtendedChatMessage = {
       text: displayText,
       isUser: true,
       timestamp: new Date(),
       imageUri: stagedImageUri ?? undefined,
-      imageContext: stagedImageContext, // kept for internal reference
+      imageContext: stagedImageContext,
     };
-    
-    // Capture updated messages INCLUDING the new user message for history building
-    const updatedMessages = [...messages, userMsg];
-    setMessages(updatedMessages);
-    
-    // Save to RoomService (background)
-    if (roomId) {
-      RoomService.addMessageToRoom(roomId, {
-        text: llmUserText,
-        isUser: true,
-        timestamp: new Date()
-      }).catch((e: any) => console.error(e));
+    setMessages(prev => [...prev, userMsg]);
+
+    // Auto-create room if this is a new chat
+    let currentRoomId = roomId;
+    if (!currentRoomId) {
+      try {
+        currentRoomId = await ChatBackend.createRoom('', displayText.substring(0, 50));
+        setRoomId(currentRoomId);
+      } catch (e) {
+        console.error('Failed to create room:', e);
+      }
     }
 
+    // Save user message to Kotlin backend
+    if (currentRoomId) {
+      ChatBackend.saveMessage(currentRoomId, displayText, true).catch(console.error);
+    }
+
+    const currentImageContext = stagedImageContext;
     setInputText('');
     setStagedImageUri(null);
     setStagedImageContext('');
@@ -543,36 +545,15 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
     setCurrentResponse('');
     scrollToBottom(80);
 
-    // ── Build full conversation history from in-memory messages ──
     try {
-      // System prompt gives the LLM its identity and response style
-      let fullPrompt = 'You are Sahayak AI, a helpful, friendly on-device assistant. '
-        + 'IMPORTANT RULES:\n'
-        + '- Match your answer length to the question complexity. For simple yes/no questions, answer in one short sentence.\n'
-        + '- For factual questions, give a brief, direct answer first, then a short explanation only if needed.\n'
-        + '- Only give long detailed answers when the user asks for explanations, lists, or detailed help.\n'
-        + '- Stay on topic and remember the conversation context.\n'
-        + '- When the user shares image context, use it naturally without mentioning OCR or extracted text.\n\n';
+      // Ask Kotlin backend to build the correct prompt (handles pipeline selection)
+      const config = await ChatBackend.buildPrompt(text, currentImageContext);
 
-      // Build multi-turn history from ALL in-memory messages (last 10 turns max)
-      const historyWindow = updatedMessages.slice(-10);
-      for (const msg of historyWindow) {
-        if (msg.isUser) {
-          // For user messages that had image context, reconstruct what the LLM should see
-          let content = msg.text;
-          if (msg.imageContext) {
-            content = `[Image OCR Context]\n${msg.imageContext}\n[End Image Context]\n\n${msg.text}`;
-          }
-          fullPrompt += `User: ${content}\n\n`;
-        } else {
-          fullPrompt += `Assistant: ${msg.text}\n\n`;
-        }
-      }
-      fullPrompt += 'Assistant:';
-
-      const streamResult = await RunAnywhere.generateStream(fullPrompt, {
-        maxTokens: 512,
-        temperature: 0.7,
+      // Run LLM generation — plain text prompt, SDK handles chat template natively
+      const streamResult = await RunAnywhere.generateStream(config.prompt, {
+        maxTokens: config.maxTokens,
+        temperature: config.temperature,
+        systemPrompt: config.systemPrompt,
       });
       streamCancelRef.current = streamResult.cancel;
       responseRef.current = '';
@@ -581,19 +562,23 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
         setCurrentResponse(responseRef.current);
       }
       await streamResult.result;
-      const finalText = responseRef.current;
+
+      // Clean trailing template tokens
+      let finalText = responseRef.current
+        .replace(/<\|im_end\|>/g, '')
+        .replace(/<\|im_start\|>/g, '')
+        .trim();
       responseRef.current = '';
-      
-      // Save assistant response
-      if (roomId) {
-        RoomService.addMessageToRoom(roomId, {
-          text: finalText,
-          isUser: false,
-          timestamp: new Date()
-        }).catch((e: any) => console.error(e));
+
+      // Track AI response in Kotlin session history
+      await ChatBackend.trackAssistantResponse(finalText);
+
+      // Save AI response to room
+      if (currentRoomId) {
+        ChatBackend.saveMessage(currentRoomId, finalText, false).catch(console.error);
       }
 
-      // Settle streaming state
+      // Update UI
       setCurrentResponse('');
       setIsGenerating(false);
       setMessages(prev => [...prev, {
@@ -641,28 +626,31 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
   const handleClearChat = useCallback(() => {
     Alert.alert('Clear Chat', 'Are you sure you want to clear this conversation?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Clear', style: 'destructive', onPress: async () => {
-        setMessages([]);
-        if (roomId) {
-          // Just reset visually, no easy way to clear RoomService besides deleteRoom
-          await RoomService.deleteRoom(roomId);
+      {
+        text: 'Clear', style: 'destructive', onPress: async () => {
+          setMessages([]);
+          await ChatBackend.clearSessionHistory();
+          if (roomId) {
+            await ChatBackend.deleteRoom(roomId);
+          }
         }
-      }}
+      }
     ])
   }, [roomId]);
 
   // ── Early return after all hooks ────────────────────────────────────────────
-  if (!modelService.isVoiceAgentReady) {
+  // Only require LLM for text chat; STT/TTS are optional (for voice features)
+  if (!modelService.isLLMLoaded) {
     return (
       <ModelLoaderWidget
-        title="Voice Models Required"
-        subtitle="Download and load speech-to-text and text-to-speech models to use voice features"
+        title="AI Model Required"
+        subtitle="Download and load the AI model to start chatting"
         icon="chat"
         accentColor={Colors.primary}
-        isDownloading={modelService.isSTTDownloading || modelService.isTTSDownloading || modelService.isLLMDownloading}
-        isLoading={modelService.isSTTLoading || modelService.isTTSLoading || modelService.isLLMLoading}
-        progress={Math.max(modelService.sttDownloadProgress, modelService.ttsDownloadProgress, modelService.llmDownloadProgress)}
-        onLoad={modelService.downloadAndLoadAllModels}
+        isDownloading={modelService.isLLMDownloading}
+        isLoading={modelService.isLLMLoading}
+        progress={modelService.llmDownloadProgress}
+        onLoad={modelService.downloadAndLoadLLM}
       />
     );
   }
@@ -792,15 +780,17 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
                 textAlignVertical="center"
               />
 
-              <TouchableOpacity
-                style={styles.pillIconButton}
-                onPress={isVoiceActive ? stopVoiceSession : startVoiceSession}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.pillIcon, isVoiceActive && styles.pillIconActive]}>
-                  {isVoiceActive ? '🔴' : '🎙'}
-                </Text>
-              </TouchableOpacity>
+              {modelService.isVoiceAgentReady && (
+                <TouchableOpacity
+                  style={styles.pillIconButton}
+                  onPress={isVoiceActive ? stopVoiceSession : startVoiceSession}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.pillIcon, isVoiceActive && styles.pillIconActive]}>
+                    {isVoiceActive ? '🔴' : '🎙'}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             {isGenerating ? (
@@ -859,7 +849,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    height: 64,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 40) + 8 : 8,
+    height: 64 + (Platform.OS === 'android' ? (StatusBar.currentHeight || 40) : 0),
   },
   topBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   backButton: {
@@ -951,7 +942,7 @@ const bubbleStyles = StyleSheet.create({
   },
   userText: { fontSize: 14, color: Colors.onPrimaryFixed, lineHeight: 20 },
   timestamp: { fontSize: 10, color: Colors.onSurface, opacity: 0.5, marginTop: 4, alignSelf: 'flex-end', fontWeight: '500' },
-  
+
   attachmentBadge: {
     flexDirection: 'row',
     alignItems: 'center',

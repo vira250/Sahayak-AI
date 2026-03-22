@@ -35,7 +35,7 @@ export class RoomService {
     try {
       const roomId = `room_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const now = Date.now();
-      
+
       const newRoom: ChatRoom = {
         id: roomId,
         title: title || 'Scanned Document Chat',
