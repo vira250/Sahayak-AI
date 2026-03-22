@@ -15,7 +15,9 @@ import {
   Alert,
   Image,
   Dimensions,
+  Keyboard,
 } from 'react-native';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { launchImageLibrary, launchCamera, ImagePickerResponse, MediaType } from 'react-native-image-picker';
 import TextRecognition from '@react-native-ml-kit/text-recognition';
 import { StackScreenProps } from '@react-navigation/stack';
@@ -161,7 +163,7 @@ const SahayakMessageBubble: React.FC<{
               resizeMode="cover"
             />
             <View style={bubbleStyles.imageOverlay}>
-              <Text style={bubbleStyles.imageOverlayIcon}>🔍</Text>
+              <MaterialCommunityIcons name="magnify" size={24} color="#FFFFFF" />
             </View>
             <Text style={bubbleStyles.imageTimestamp}>
               {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -186,12 +188,12 @@ const SahayakMessageBubble: React.FC<{
                 resizeMode="cover"
               />
               <View style={bubbleStyles.imageOverlaySmall}>
-                <Text style={bubbleStyles.imageOverlayIcon}>🔍</Text>
+                <MaterialCommunityIcons name="magnify" size={16} color="#FFFFFF" />
               </View>
             </TouchableOpacity>
             {hasImageContext && (
               <View style={bubbleStyles.attachmentBadge}>
-                <Text style={bubbleStyles.attachmentIcon}>📄</Text>
+                <MaterialCommunityIcons name="file-document-outline" size={12} color={Colors.onSecondaryContainer} style={{ marginRight: 4 }} />
                 <Text style={bubbleStyles.attachmentLabel}>Text extracted from image</Text>
               </View>
             )}
@@ -210,7 +212,7 @@ const SahayakMessageBubble: React.FC<{
         <View style={bubbleStyles.userBubble}>
           {hasImageContext && (
             <View style={bubbleStyles.attachmentBadge}>
-              <Text style={bubbleStyles.attachmentIcon}>📸</Text>
+              <MaterialCommunityIcons name="camera-outline" size={12} color="#FFFFFF" style={{ marginRight: 4 }} />
               <Text style={bubbleStyles.attachmentLabel}>Image Context Attached</Text>
             </View>
           )}
@@ -227,7 +229,11 @@ const SahayakMessageBubble: React.FC<{
   return (
     <View style={bubbleStyles.aiRow}>
       <View style={bubbleStyles.aiAvatar}>
-        <Text style={bubbleStyles.aiAvatarIcon}>⚡</Text>
+        <Image
+          source={require('../assets/logo.png')}
+          style={bubbleStyles.aiAvatarImage}
+          resizeMode="contain"
+        />
       </View>
       <View style={bubbleStyles.aiBubble}>
         <Text style={[
@@ -245,7 +251,7 @@ const SahayakMessageBubble: React.FC<{
               style={bubbleStyles.speakButton}
               onPress={() => onPlayTTS(message.text)}
             >
-              <Text style={bubbleStyles.speakIcon}>🔊</Text>
+              <MaterialCommunityIcons name="volume-high" size={20} color={Colors.primary} />
             </TouchableOpacity>
           )}
         </View>
@@ -270,7 +276,7 @@ const ImageSourceSheet: React.FC<{
 
       <TouchableOpacity style={sheetStyles.option} onPress={onCamera} activeOpacity={0.75}>
         <View style={[sheetStyles.optionIcon, { backgroundColor: Colors.primaryFixed }]}>
-          <Text style={sheetStyles.optionEmoji}>📷</Text>
+          <MaterialCommunityIcons name="camera" size={24} color={Colors.onPrimaryFixed} />
         </View>
         <View style={sheetStyles.optionText}>
           <Text style={sheetStyles.optionLabel}>Take Photo</Text>
@@ -283,7 +289,7 @@ const ImageSourceSheet: React.FC<{
 
       <TouchableOpacity style={sheetStyles.option} onPress={onGallery} activeOpacity={0.75}>
         <View style={[sheetStyles.optionIcon, { backgroundColor: Colors.secondaryContainer }]}>
-          <Text style={sheetStyles.optionEmoji}>🖼️</Text>
+          <MaterialCommunityIcons name="image-multiple" size={24} color={Colors.onSecondaryContainer} />
         </View>
         <View style={sheetStyles.optionText}>
           <Text style={sheetStyles.optionLabel}>Choose from Gallery</Text>
@@ -338,6 +344,12 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
   const streamCancelRef = useRef<(() => void) | null>(null);
   const responseRef = useRef('');
   const voiceSessionRef = useRef<VoiceSessionHandle | null>(null);
+  const inputRef = useRef(''); // Always has latest text (avoids Android state lag)
+
+  const updateInputText = useCallback((val: string) => {
+    inputRef.current = val;
+    setInputText(val);
+  }, []);
 
   // Load old messages from Kotlin backend
   useEffect(() => {
@@ -370,7 +382,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
         setVoiceStatus('Listening...');
         break;
       case 'transcribed':
-        if (event.transcription) setInputText(event.transcription);
+        if (event.transcription) updateInputText(event.transcription);
         setVoiceStatus('Transcribed');
         break;
       case 'responded':
@@ -503,7 +515,22 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
 
   // ── Send ────────────────────────────────────────────────────────────────────
   const handleSend = useCallback(async () => {
-    const text = inputText.trim();
+    // Force keyboard to dismiss. On Android, this usually flushes the current
+    // "composition" (underlined text) to the TextInput's value/onChangeText.
+    Keyboard.dismiss();
+
+    // Delay to allow Android TextInput to flush the last character/word 
+    // to the ref/state after the keyboard dismiss.
+    if (Platform.OS === 'android') {
+      await new Promise(resolve => setTimeout(resolve, 150));
+    }
+
+    // Capture text from both Ref and State. Pick the longest one to ensure 
+    // nothing was dropped during the Android state sync delay.
+    const textRef = inputRef.current.trim();
+    const textState = inputText.trim();
+    const text = textRef.length >= textState.length ? textRef : textState;
+
     const hasImage = !!stagedImageUri;
     if (!text && !hasImage) return;
     if (isGenerating) return;
@@ -539,6 +566,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
 
     const currentImageContext = stagedImageContext;
     setInputText('');
+    inputRef.current = '';
     setStagedImageUri(null);
     setStagedImageContext('');
     setIsGenerating(true);
@@ -662,7 +690,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
 
       <KeyboardAvoidingView
         style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         {/* Top Bar */}
@@ -670,7 +698,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
           <View style={styles.topBarInner}>
             <View style={styles.topBarLeft}>
               <TouchableOpacity style={styles.backButton} activeOpacity={0.7} onPress={() => navigation.goBack()}>
-                <Text style={styles.backIcon}>←</Text>
+                <MaterialCommunityIcons name="arrow-left" size={24} color="#1B3A5C" />
               </TouchableOpacity>
               <View>
                 <Text style={styles.topBarTitle}>Sahayak AI Chat</Text>
@@ -683,7 +711,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
               </View>
             </View>
             <TouchableOpacity style={styles.moreButton} activeOpacity={0.7} onPress={handleClearChat}>
-              <Text style={styles.moreIcon}>⋮</Text>
+              <MaterialCommunityIcons name="dots-vertical" size={24} color="#1B3A5C" />
             </TouchableOpacity>
           </View>
           <View style={styles.topBarDivider} />
@@ -697,26 +725,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
 
         {/* Messages / Empty State */}
         {messages.length === 0 ? (
-          <View style={styles.emptyState}>
-            <View style={styles.emptyIconContainer}>
-              <Text style={styles.emptyIcon}>🤖</Text>
-            </View>
-            <Text style={styles.emptySubtitle}>
-              Start a conversation or send an image to interact with Sahayak AI.
-            </Text>
-            <View style={styles.suggestionsContainer}>
-              {(['Tell me a joke', 'What is AI?', 'Write a haiku'] as const).map(chip => (
-                <TouchableOpacity
-                  key={chip}
-                  style={styles.suggestionChip}
-                  onPress={() => setInputText(chip)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.suggestionText}>{chip}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
+          <View style={styles.emptyContent} />
         ) : (
           <FlatList
             ref={flatListRef}
@@ -763,7 +772,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
                 onPress={() => setShowSourceSheet(true)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.pillIcon}>⬆</Text>
+                <MaterialCommunityIcons name="plus" size={24} color={Colors.primary} />
               </TouchableOpacity>
 
               <TextInput
@@ -771,7 +780,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
                 placeholder="Ask anything"
                 placeholderTextColor={Colors.outline}
                 value={inputText}
-                onChangeText={setInputText}
+                onChangeText={updateInputText}
                 onSubmitEditing={handleSend}
                 editable={!isGenerating}
                 multiline
@@ -786,16 +795,18 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
                   onPress={isVoiceActive ? stopVoiceSession : startVoiceSession}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.pillIcon, isVoiceActive && styles.pillIconActive]}>
-                    {isVoiceActive ? '🔴' : '🎙'}
-                  </Text>
+                  <MaterialCommunityIcons 
+                    name={isVoiceActive ? 'microphone-off' : 'microphone'} 
+                    size={24} 
+                    color={isVoiceActive ? Colors.error : Colors.primary} 
+                  />
                 </TouchableOpacity>
               )}
             </View>
 
             {isGenerating ? (
               <TouchableOpacity style={styles.sendButton} onPress={handleStop} activeOpacity={0.8}>
-                <Text style={styles.sendIcon}>⏹</Text>
+                <MaterialCommunityIcons name="stop" size={24} color="#FFFFFF" />
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
@@ -807,7 +818,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
                 disabled={!inputText.trim() && !stagedImageUri}
                 activeOpacity={0.8}
               >
-                <Text style={styles.sendIcon}>➤</Text>
+                <MaterialCommunityIcons name="send" size={24} color="#FFFFFF" />
               </TouchableOpacity>
             )}
           </View>
@@ -874,7 +885,7 @@ const styles = StyleSheet.create({
   blobTopLeft: { top: '-10%', left: '-15%', width: '55%', aspectRatio: 1, backgroundColor: Colors.primaryFixed },
   blobBottomRight: { bottom: '-5%', right: '-10%', width: '45%', aspectRatio: 1, backgroundColor: Colors.secondaryContainer },
   messageList: { padding: 16, paddingBottom: 8 },
-  emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32, paddingBottom: 60 },
+  emptyContent: { flex: 1 },
   emptyIconContainer: { width: 72, height: 72, borderRadius: 36, backgroundColor: Colors.surfaceContainer, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   emptyIcon: { fontSize: 34 },
   emptySubtitle: { fontSize: 14, color: Colors.onSurfaceVariant, textAlign: 'center', fontWeight: '500', lineHeight: 20, maxWidth: 260, marginBottom: 28 },
@@ -898,13 +909,14 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
     shadowColor: Colors.onSurface, shadowOffset: { width: 0, height: -8 },
     shadowOpacity: 0.06, shadowRadius: 24, elevation: 16,
-    paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, zIndex: 50,
+    paddingHorizontal: 16, paddingTop: 12, 
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20, zIndex: 50,
   },
   bottomBarRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   inputPill: {
     flex: 1, flexDirection: 'row', alignItems: 'center',
     backgroundColor: Colors.surfaceContainerHighest,
-    borderRadius: 999, paddingHorizontal: 6, minHeight: 52,
+    borderRadius: 999, paddingHorizontal: 10, minHeight: 52,
   },
   pillIconButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18 },
   pillIcon: { fontSize: 18, color: Colors.onSurfaceVariant },
@@ -912,7 +924,7 @@ const styles = StyleSheet.create({
   textInput: {
     flex: 1, fontSize: 14, color: Colors.onSurface,
     maxHeight: 100, minHeight: 36,
-    paddingVertical: 8, paddingHorizontal: 4, textAlignVertical: 'center',
+    paddingVertical: 8, paddingHorizontal: 8, paddingRight: 4, textAlignVertical: 'center',
   },
   sendButton: {
     width: 52, height: 52, borderRadius: 14, backgroundColor: '#0d1b2a',
@@ -940,7 +952,7 @@ const bubbleStyles = StyleSheet.create({
     shadowColor: Colors.onSurface, shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
   },
-  userText: { fontSize: 14, color: Colors.onPrimaryFixed, lineHeight: 20 },
+  userText: { fontSize: 14, color: Colors.onPrimaryFixed },
   timestamp: { fontSize: 10, color: Colors.onSurface, opacity: 0.5, marginTop: 4, alignSelf: 'flex-end', fontWeight: '500' },
 
   attachmentBadge: {
@@ -1001,14 +1013,14 @@ const bubbleStyles = StyleSheet.create({
     backgroundColor: Colors.surfaceContainerHighest,
   },
   userTextBelowImage: {
-    fontSize: 14, color: Colors.onPrimaryFixed, lineHeight: 20,
+    fontSize: 14, color: Colors.onPrimaryFixed,
     paddingHorizontal: 14, paddingTop: 10, paddingBottom: 4,
   },
 
   // AI bubble
   aiRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 16 },
-  aiAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.secondaryContainer, alignItems: 'center', justifyContent: 'center', marginTop: 4, flexShrink: 0 },
-  aiAvatarIcon: { fontSize: 14 },
+  aiAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.secondaryContainer, alignItems: 'center', justifyContent: 'center', marginTop: 4, flexShrink: 0, overflow: 'hidden' },
+  aiAvatarImage: { width: 24, height: 24 },
   aiBubble: {
     maxWidth: '85%', backgroundColor: Colors.secondaryFixed,
     paddingHorizontal: 18, paddingVertical: 12,
@@ -1016,7 +1028,7 @@ const bubbleStyles = StyleSheet.create({
     shadowColor: Colors.onSurface, shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
   },
-  aiText: { fontSize: 14, color: Colors.onSecondaryFixed, lineHeight: 20 },
+  aiText: { fontSize: 14, color: Colors.onSecondaryFixed },
   errorText: { color: Colors.error },
   cancelledText: { opacity: 0.7 },
   aiFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },

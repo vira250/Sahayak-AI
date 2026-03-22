@@ -8,6 +8,7 @@ import {
   Platform,
   NativeModules,
 } from 'react-native';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import RNFS from 'react-native-fs';
 import { RunAnywhere, VoiceSessionEvent, VoiceSessionHandle } from '@runanywhere/core';
 import { AppColors } from '../theme';
@@ -251,7 +252,11 @@ export const SmartNotesScreen: React.FC = () => {
             onPress={isActive ? stopRecording : startRecording}
             style={[styles.recordButton, isActive && styles.activeButton]}
           >
-            <Text style={styles.recordIcon}>{isActive ? '⏹' : '🎤'}</Text>
+            <MaterialCommunityIcons 
+              name={isActive ? 'stop' : 'microphone'} 
+              size={32} 
+              color="#FFFFFF" 
+            />
           </TouchableOpacity>
         </View>
 

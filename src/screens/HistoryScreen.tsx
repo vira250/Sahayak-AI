@@ -9,11 +9,14 @@ import {
   SafeAreaView,
   Platform,
   Alert,
+  Image,
 } from 'react-native';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/types';
 import { ChatBackend, ChatRoom } from '../services/ChatBackendBridge';
+import { BottomNav } from '../components';
 
 type HistoryScreenProps = {
   navigation: StackNavigationProp<RootStackParamList, 'History'>;
@@ -78,7 +81,14 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
 
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Chat History</Text>
+        <View style={styles.headerLeft}>
+          <Image 
+            source={require('../assets/logo.png')} 
+            style={styles.logoImage} 
+            resizeMode="contain" 
+          />
+          <Text style={styles.headerTitle}>History</Text>
+        </View>
         {rooms.length > 0 && (
           <TouchableOpacity onPress={handleClearAll}>
             <Text style={styles.clearAllText}>Clear All</Text>
@@ -93,9 +103,9 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
           activeOpacity={0.8}
           onPress={() => navigation.navigate('Chat')}
         >
-          <Text style={styles.newChatIcon}>✨</Text>
+          <MaterialCommunityIcons name="sparkles" size={20} color="#FFFFFF" style={{ marginRight: 12 }} />
           <Text style={styles.newChatText}>Start New Conversation</Text>
-          <Text style={styles.newChatArrow}>→</Text>
+          <MaterialCommunityIcons name="chevron-right" size={20} color="rgba(255,255,255,0.6)" />
         </TouchableOpacity>
       </View>
 
@@ -106,7 +116,7 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
       >
         {rooms.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>💬</Text>
+            <MaterialCommunityIcons name="message-text-outline" size={64} color="#CBD5E1" style={{ marginBottom: 16 }} />
             <Text style={styles.emptyTitle}>No conversations yet</Text>
             <Text style={styles.emptySubtext}>
               Start a conversation with Dr. Sahayak to see your chat history here
@@ -122,9 +132,11 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
               onLongPress={() => handleDeleteRoom(room.id)}
             >
               <View style={styles.roomIconContainer}>
-                <Text style={styles.roomIcon}>
-                  {room.context ? '📄' : '💬'}
-                </Text>
+                <MaterialCommunityIcons 
+                  name={room.context ? 'file-document-outline' : 'message-text-outline'} 
+                  size={24} 
+                  color="#1B3A5C" 
+                />
               </View>
               <View style={styles.roomTextContainer}>
                 <Text style={styles.roomTitle} numberOfLines={1}>
@@ -134,7 +146,7 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
                   {timeAgo(room.lastUpdatedAt)} • {room.context ? 'Document' : 'Chat'}
                 </Text>
               </View>
-              <Text style={styles.chevron}>›</Text>
+              <MaterialCommunityIcons name="chevron-right" size={24} color="#CBD5E1" />
             </TouchableOpacity>
           ))
         )}
@@ -142,36 +154,7 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Home')}>
-          <View style={styles.navIconContainer}>
-            <Text style={styles.navIcon}>🏠</Text>
-          </View>
-          <Text style={styles.navLabel}>HOME</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('History')}>
-          <View style={[styles.navIconContainer, styles.navItemActive]}>
-            <Text style={styles.navIcon}>🕘</Text>
-          </View>
-          <Text style={[styles.navLabel, styles.navLabelActive]}>HISTORY</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Scan')}>
-          <View style={styles.navIconContainer}>
-            <Text style={styles.navIcon}>🔍</Text>
-          </View>
-          <Text style={styles.navLabel}>SCAN</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem}>
-          <View style={styles.navIconContainer}>
-            <Text style={styles.navIcon}>⚙️</Text>
-          </View>
-          <Text style={styles.navLabel}>SETTINGS</Text>
-        </TouchableOpacity>
-      </View>
+      <BottomNav activeTab="History" />
     </SafeAreaView>
   );
 };
@@ -189,8 +172,17 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 40) + 12 : 16,
   },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  logoImage: {
+    width: 32,
+    height: 32,
+    marginRight: 10,
+  },
   headerTitle: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: '800',
     color: '#0F2544',
     letterSpacing: -0.5,
@@ -301,51 +293,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 40,
     lineHeight: 20,
-  },
-  bottomNav: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 85,
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    paddingBottom: Platform.OS === 'ios' ? 20 : 10,
-    paddingTop: 10,
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-  },
-  navItem: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  navIconContainer: {
-    width: 44,
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 16,
-    marginBottom: 4,
-  },
-  navItemActive: {
-    backgroundColor: '#E8EEF4',
-  },
-  navIcon: {
-    fontSize: 20,
-  },
-  navLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#94A3B8',
-  },
-  navLabelActive: {
-    color: '#1B3A5C',
-    fontWeight: '800',
   },
 });

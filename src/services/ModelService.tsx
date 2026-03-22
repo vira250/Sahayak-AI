@@ -4,7 +4,6 @@ import { LlamaCPP } from '@runanywhere/llamacpp';
 import { ONNX, ModelArtifactType } from '@runanywhere/onnx';
 
 // Model IDs - matching sample app model registry
-// See: /Users/shubhammalhotra/Desktop/test-fresh/runanywhere-sdks/examples/react-native/RunAnywhereAI/App.tsx
 const MODEL_IDS = {
   llm: 'qwen2.5-1.5b-instruct-q4km',
   stt: 'sherpa-onnx-whisper-tiny.en',
@@ -19,11 +18,13 @@ interface ModelServiceState {
   isSTTDownloading: boolean;
   isTTSDownloading: boolean;
   isIMGDownloading: boolean;
+  isIMGProjDownloading: boolean;
 
   llmDownloadProgress: number;
   sttDownloadProgress: number;
   ttsDownloadProgress: number;
   imgDownloadProgress: number;
+  imgProjDownloadProgress: number;
 
   // Load state
   isLLMLoading: boolean;
@@ -73,11 +74,13 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
   const [isSTTDownloading, setIsSTTDownloading] = useState(false);
   const [isTTSDownloading, setIsTTSDownloading] = useState(false);
   const [isIMGDownloading, setIsIMGDownloading] = useState(false);
+  const [isIMGProjDownloading, setIsIMGProjDownloading] = useState(false);
 
   const [llmDownloadProgress, setLLMDownloadProgress] = useState(0);
   const [sttDownloadProgress, setSTTDownloadProgress] = useState(0);
   const [ttsDownloadProgress, setTTSDownloadProgress] = useState(0);
   const [imgDownloadProgress, setIMGDownloadProgress] = useState(0);
+  const [imgProjDownloadProgress, setIMGProjDownloadProgress] = useState(0);
 
   // Load state
   const [isLLMLoading, setIsLLMLoading] = useState(false);
@@ -172,16 +175,14 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
     for (const modelId of modelsToTry) {
       try {
         const success = await tryDownloadAndLoadLLM(modelId);
-        if (success) return; // loaded successfully
+        if (success) return;
       } catch (error) {
         console.error(`LLM error for ${modelId}:`, error);
-        // Reset states and try next model
         setIsLLMDownloading(false);
         setIsLLMLoading(false);
       }
     }
 
-    // All models failed
     console.error('All LLM models failed to load');
     setIsLLMDownloading(false);
     setIsLLMLoading(false);
@@ -259,13 +260,14 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
     }
   }, [isTTSDownloading, isTTSLoading, checkModelDownloaded]);
 
-  // Download and load Image Model
+  // Download and load Image Model + Vision Projector (mmproj)
   // NOTE: llama.cpp can only hold one model at a time.
-  // The IMG model is downloaded only and loaded on-demand when needed for vision tasks.
+  // Both files are downloaded here; loaded together on-demand for vision tasks.
   const downloadAndLoadIMG = useCallback(async () => {
     if (isIMGDownloading || isIMGLoading) return;
 
     try {
+      // --- Download main vision model (nanollava) ---
       const isDownloaded = await checkModelDownloaded(MODEL_IDS.img);
 
       if (!isDownloaded) {
@@ -279,15 +281,30 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
         setIsIMGDownloading(false);
       }
 
-      // Mark as ready (download-only; loaded on-demand for vision tasks)
+      // --- Download vision projector (mmproj) ---
+      const isProjDownloaded = await checkModelDownloaded(MODEL_IDS.imgProj);
+
+      if (!isProjDownloaded) {
+        setIsIMGProjDownloading(true);
+        setIMGProjDownloadProgress(0);
+
+        await RunAnywhere.downloadModel(MODEL_IDS.imgProj, (progress) => {
+          setIMGProjDownloadProgress(progress.progress * 100);
+        });
+
+        setIsIMGProjDownloading(false);
+      }
+
+      // Both files ready — mark vision as available for on-demand use
       setIsIMGLoaded(true);
       setIsIMGLoading(false);
-      console.log('IMG model downloaded and ready for on-demand use');
+      console.log('IMG model + mmproj downloaded and ready for on-demand use');
     } catch (error) {
       console.error('IMG download error:', error);
       // Mark as loaded anyway so user can proceed - IMG is optional
       setIsIMGLoaded(true);
       setIsIMGDownloading(false);
+      setIsIMGProjDownloading(false);
       setIsIMGLoading(false);
     }
   }, [isIMGDownloading, isIMGLoading, checkModelDownloaded]);
@@ -300,7 +317,8 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
     const stt = await checkModelDownloaded(MODEL_IDS.stt);
     const tts = await checkModelDownloaded(MODEL_IDS.tts);
     const img = await checkModelDownloaded(MODEL_IDS.img);
-    const all = llm && stt && tts && img;
+    const imgProj = await checkModelDownloaded(MODEL_IDS.imgProj);
+    const all = llm && stt && tts && img && imgProj;
     setIsAllDownloadedState(all);
     return all;
   }, [checkModelDownloaded]);
@@ -334,8 +352,6 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
 
   // Mark setup as complete
   const completeSetup = useCallback(async () => {
-    // We can also use AsyncStorage here if needed, but for now 
-    // we'll rely on the isAllDownloaded check and this memory state
     setHasCompletedSetup(true);
   }, []);
 
@@ -344,10 +360,12 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
     isSTTDownloading,
     isTTSDownloading,
     isIMGDownloading,
+    isIMGProjDownloading,
     llmDownloadProgress,
     sttDownloadProgress,
     ttsDownloadProgress,
     imgDownloadProgress,
+    imgProjDownloadProgress,
     isLLMLoading,
     isSTTLoading,
     isTTSLoading,
@@ -379,7 +397,6 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
 
 /**
  * Register default models with the SDK
- * Models match the sample app: /Users/shubhammalhotra/Desktop/test-fresh/runanywhere-sdks/examples/react-native/RunAnywhereAI/App.tsx
  */
 export const registerDefaultModels = async () => {
   // LLM Model - Qwen2.5 1.5B Instruct Q4_K_M (~1GB, excellent instruction following)
@@ -407,7 +424,6 @@ export const registerDefaultModels = async () => {
   });
 
   // STT Model - Sherpa Whisper Tiny English
-  // Using tar.gz from RunanywhereAI/sherpa-onnx for fast native extraction
   await ONNX.addModel({
     id: MODEL_IDS.stt,
     name: 'Sherpa Whisper Tiny (ONNX)',
@@ -427,7 +443,7 @@ export const registerDefaultModels = async () => {
     memoryRequirement: 65_000_000,
   });
 
-  // Image/Vision Model - NanoLLaVA (tiny multimodal, ~600MB text model)
+  // Image/Vision Model - NanoLLaVA (~700MB text model)
   // Downloaded only; loaded on-demand when user opens vision features
   await LlamaCPP.addModel({
     id: MODEL_IDS.img,
@@ -436,11 +452,11 @@ export const registerDefaultModels = async () => {
     memoryRequirement: 700_000_000,
   });
 
-  // Vision Projector - NanoLLaVA mmproj (needed for VLM image analysis)
+  // Vision Projector - NanoLLaVA mmproj (~900MB, needed for VLM image analysis)
   await LlamaCPP.addModel({
     id: MODEL_IDS.imgProj,
     name: 'NanoLLaVA MMProj F16',
     url: 'https://huggingface.co/abetlen/nanollava-gguf/resolve/main/nanollava-mmproj-f16.gguf',
-    memoryRequirement: 200_000_000,
+    memoryRequirement: 900_000_000,
   });
 };

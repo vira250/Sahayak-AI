@@ -24,37 +24,79 @@ import { useModelService } from '../services/ModelService';
 import { RootStackParamList } from '../navigation/types';
 import { ChatBackend } from '../services/ChatBackendBridge';
 import { playBase64Audio } from '../utils/AudioPlayer';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import LinearGradient from 'react-native-linear-gradient';
 
 const { width } = Dimensions.get('window');
 
 // The prompt that tells the VLM what to do with the image
-const VISION_PROMPT = `Look at this image carefully and identify what it shows. Then provide helpful analysis:
+const VISION_PROMPT = `You are Dr. Sahayak, a medical first-aid assistant. Carefully examine this image and provide a detailed, structured analysis.
 
-If this is a MEDICINE or MEDICATION:
-- Name of the medicine
-- What it is used for
-- When and how to take it
-- Common side effects
-- Important precautions
-- Disclaimer: consult a doctor for medical advice
+STEP 1: Identify what the image shows (injury, medicine, document, or other).
+STEP 2: Provide specific guidance based on the category below.
 
-If this shows an INJURY, WOUND, or MEDICAL EMERGENCY:
-- What type of injury this appears to be
-- Immediate first aid steps
-- What NOT to do
-- When to seek emergency help (call 112)
-- Temporary treatment until help arrives
+═══ INJURIES & WOUNDS ═══
 
-If this is a DOCUMENT, BILL, or FORM:
-- Summary of the contents
-- Key information (dates, amounts, names)
-- Action items if any
+If you see a CUT, LACERATION, or OPEN WOUND:
+• Severity: minor (shallow, <2cm) / moderate (deep, bleeding) / severe (deep, gaping, won't stop bleeding)
+• First aid: clean with running water, apply gentle pressure with clean cloth, apply antiseptic, cover with sterile bandage
+• Do NOT: use cotton directly on wound, apply turmeric/toothpaste, pull out embedded objects
+• Seek emergency help if: bleeding won't stop after 10 min, wound is deep/gaping, caused by rusty/dirty object, signs of infection (redness spreading, pus, fever)
 
-For ANYTHING ELSE:
-- Describe what you see
-- Provide any useful information
+If you see a BURN:
+• Degree: 1st (red, no blisters) / 2nd (blisters, swelling, pain) / 3rd (white/charred, numb)
+• First aid: cool under running water for 10-20 min, cover loosely with clean cloth
+• Do NOT: apply ice directly, pop blisters, apply butter/oil/toothpaste, remove stuck clothing
+• Seek emergency help if: burn is larger than palm size, on face/hands/joints/genitals, is 3rd degree, victim is a child or elderly
 
-Be concise and use bullet points. Start by stating what you identified in the image.`;
+If you see SWELLING or INFLAMMATION:
+• Type: traumatic (from injury) / infectious (red, warm, spreading) / allergic (hives, facial swelling)
+• First aid: RICE method (Rest, Ice-20min on/off, Compress, Elevate), OTC pain relief
+• Seek emergency help if: swelling on throat/face causing breathing difficulty, rapidly spreading redness, accompanied by fever >101°F
+
+If you see a SKIN CONDITION (rash, bite, infection, boil):
+• Identify: insect bite, allergic rash, fungal infection, boil/abscess, eczema
+• First aid: wash area, apply calamine/anti-itch cream, cold compress, avoid scratching
+• Seek help if: spreading rapidly, pus/discharge, fever, near eyes, circular rash (possible Lyme)
+
+If you see a possible FRACTURE or SPRAIN:
+• Signs: deformity, severe swelling, bruising, inability to move
+• First aid: immobilize the area, do not try to realign, apply cold pack, elevate
+• Seek emergency help immediately for: open fractures, loss of feeling, deformity
+
+If you see an EYE INJURY:
+• First aid: do NOT rub, flush with clean water for chemical exposure, cover with clean cup/shield
+• Seek emergency help immediately for: embedded objects, chemical burns, blurred vision, bleeding
+
+═══ MEDICINE / MEDICATION ═══
+
+If this is a MEDICINE (tablet, syrup, packaging):
+• Name of medicine (read from label/packaging)
+• Primary use and what condition it treats
+• Typical dosage and when to take
+• Common side effects to watch for
+• Important warnings and drug interactions
+• ⚠️ Always consult your doctor before starting or stopping any medication
+
+═══ DOCUMENT / REPORT ═══
+
+If this is a MEDICAL REPORT, BILL, or DOCUMENT:
+• Summary of key findings or charges
+• Important values, dates, and names
+• Any abnormal results highlighted
+• Recommended next steps
+
+═══ OTHER ═══
+
+For anything else, describe what you see and provide useful context.
+
+IMPORTANT RULES:
+• Use bullet points (•) for all responses
+• Start with "🔍 Identified:" followed by what you see
+• Be specific — mention exact body part, severity, and color observations
+• Always end with: "⚠️ Disclaimer: This is AI-assisted first aid guidance only. Please consult a qualified doctor for proper diagnosis and treatment."
+• For emergencies, mention: "🚨 Call emergency services (112) immediately"`;
+
 
 export const ScanScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
@@ -63,7 +105,6 @@ export const ScanScreen: React.FC = () => {
   const [additionalContext, setAdditionalContext] = useState('');
   const [analysisResult, setAnalysisResult] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isExtractingText, setIsExtractingText] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [downloadProgress, setDownloadProgress] = useState(0);
   const responseRef = useRef('');
@@ -141,13 +182,13 @@ export const ScanScreen: React.FC = () => {
   const ensureVLMReady = useCallback(async (): Promise<boolean> => {
     // Step 1: Check if VLM is already loaded
     try {
-      const loaded = await RunAnywhere.isVLMModelLoaded();
+      const loaded = await RunAnywhere.isModelLoaded();
       if (loaded) {
         console.log('VLM already loaded');
         return true;
       }
     } catch (e) {
-      console.log('isVLMModelLoaded check failed:', e);
+      console.log('isModelLoaded check failed:', e);
     }
 
     // Step 2: Get or download VLM text model
@@ -219,7 +260,20 @@ export const ScanScreen: React.FC = () => {
     // Step 4: Load VLM
     setStatusMessage('Loading vision model...');
     try {
-      const success = await RunAnywhere.loadVLMModel(textModelPath, projectorPath);
+      // Try loading with projector path
+      let success = false;
+      try {
+        success = await RunAnywhere.loadModel(textModelPath, { projectorPath });
+      } catch (projErr: any) {
+        console.warn('loadModel with projectorPath failed, trying without:', projErr?.message || projErr);
+        // Fallback: try loading just the text model (may work for some backends)
+        try {
+          success = await RunAnywhere.loadModel(textModelPath);
+        } catch (fallbackErr: any) {
+          console.error('loadModel fallback also failed:', fallbackErr?.message || fallbackErr);
+          success = false;
+        }
+      }
       if (success) {
         console.log('VLM loaded successfully!');
         setStatusMessage('Vision model ready!');
@@ -248,61 +302,100 @@ export const ScanScreen: React.FC = () => {
     setDownloadProgress(0);
     responseRef.current = '';
 
-    // Build the prompt
-    let prompt = VISION_PROMPT;
-    if (additionalContext.trim()) {
-      prompt += `\n\nUser context: "${additionalContext.trim()}"`;
-    }
-
-    // Get the image path
-    let imagePath = capturedImage.uri || '';
-    if (imagePath.startsWith('file://')) {
-      imagePath = imagePath.substring(7);
-    }
-
     try {
-      // Ensure VLM is ready (download + load if needed)
-      const vlmReady = await ensureVLMReady();
+      // Step 1: Extract text from the image using ML Kit OCR
+      setStatusMessage('Scanning image for text...');
+      let extractedText = '';
+      try {
+        const ocrResult = await TextRecognition.recognize(capturedImage.uri);
+        extractedText = ocrResult?.text || '';
+        console.log('OCR extracted text length:', extractedText.length);
+      } catch (ocrErr: any) {
+        console.warn('OCR extraction failed (non-fatal):', ocrErr?.message || ocrErr);
+        // Continue even if OCR fails — user may have provided context
+      }
 
-      if (!vlmReady) {
+      if (!extractedText && !additionalContext.trim()) {
         setAnalysisResult(
-          '❌ Could not load the Vision AI model. This may be due to:\n\n' +
-          '• Insufficient device memory (needs ~1GB free RAM)\n' +
-          '• Download interrupted — try again with stable internet\n' +
-          '• Model files corrupted — restart the app and try again\n\n' +
-          'Tip: Close other apps to free memory and try again.',
+          '⚠️ No text could be extracted from this image and no context was provided.\n\n' +
+          '• Try adding a description of what you see in the text box above\n' +
+          '• For medicines: type the medicine name\n' +
+          '• For injuries: describe the injury type, location, and severity\n' +
+          '• Make sure the image is clear and well-lit\n\n' +
+          'Then tap "Analyze Scan" again.',
         );
         setIsAnalyzing(false);
         return;
       }
 
-      // Analyze the image with VLM
-      setStatusMessage('Analyzing image...');
+      // Step 2: Check if LLM is loaded, reload if needed
+      setStatusMessage('Preparing AI model...');
+      try {
+        const modelLoaded = await RunAnywhere.isModelLoaded();
+        if (!modelLoaded) {
+          // Try to reload the LLM — the VLM flow may have unloaded it
+          setStatusMessage('Loading AI model...');
+          const modelPath = await RunAnywhere.getModelPath('qwen2.5-1.5b-instruct-q4km');
+          if (modelPath) {
+            await RunAnywhere.loadModel(modelPath);
+          } else {
+            // Try fallback models
+            for (const fallback of ['smollm2-360m-q8_0', 'lfm2-350m-q8_0']) {
+              try {
+                const fbPath = await RunAnywhere.getModelPath(fallback);
+                if (fbPath) {
+                  await RunAnywhere.loadModel(fbPath);
+                  break;
+                }
+              } catch { /* try next */ }
+            }
+          }
+        }
+      } catch (modelErr: any) {
+        console.warn('Model check/load failed:', modelErr?.message || modelErr);
+      }
+
+      // Step 3: Build the prompt with extracted text and user context
+      let analysisPrompt = VISION_PROMPT + '\n\n';
+      if (extractedText) {
+        analysisPrompt += `📋 TEXT EXTRACTED FROM IMAGE:\n"""${extractedText}"""\n\n`;
+      }
+      analysisPrompt += 'Based on the information above, provide your analysis:';
+
+      // Step 4: Stream LLM response
+      setStatusMessage('Analyzing...');
 
       try {
-        // Try streaming first
-        await RunAnywhere.analyzeImageStream(
-          imagePath,
-          prompt,
-          (token: string) => {
-            responseRef.current += token;
-            setAnalysisResult(responseRef.current);
-            setStatusMessage(''); // Hide status once we start getting results
-          },
-        );
+        const streaming = await RunAnywhere.generateStream(analysisPrompt, {
+          maxTokens: 1000,
+          temperature: 0.7,
+        });
+
+        for await (const token of streaming.stream) {
+          responseRef.current += token;
+          setAnalysisResult(responseRef.current);
+          setStatusMessage('');
+        }
       } catch (streamErr: any) {
-        console.warn('analyzeImageStream failed, trying non-streaming:', streamErr);
-        // Fallback to non-streaming
+        console.warn('generateStream failed, trying non-stream:', streamErr?.message || streamErr);
+        // Fallback to non-streaming generate
         try {
-          const result = await RunAnywhere.analyzeImage(imagePath, prompt);
-          const parsed = typeof result === 'string' ? result : JSON.stringify(result);
-          setAnalysisResult(parsed);
-        } catch (analyzeErr: any) {
-          console.error('analyzeImage also failed:', analyzeErr);
+          const result = await RunAnywhere.generate(analysisPrompt, {
+            maxTokens: 1000,
+            temperature: 0.7,
+          });
+          if (result?.text) {
+            setAnalysisResult(result.text);
+          } else {
+            throw new Error('Empty response from generate');
+          }
+        } catch (genErr: any) {
+          console.error('Non-streaming generate also failed:', genErr?.message || genErr);
           setAnalysisResult(
-            `❌ Image analysis failed: ${analyzeErr?.message || analyzeErr}\n\n` +
-            'The vision model may not support this image format.\n' +
-            'Try taking a clearer, well-lit photo.',
+            `❌ Analysis failed: ${genErr?.message || 'Unknown error'}\n\n` +
+            '• Make sure the AI model is loaded\n' +
+            '• Try restarting the app\n' +
+            '• Close other apps to free memory',
           );
         }
       }
@@ -314,7 +407,7 @@ export const ScanScreen: React.FC = () => {
       setStatusMessage('');
       setDownloadProgress(0);
     }
-  }, [capturedImage, additionalContext, ensureVLMReady]);
+  }, [capturedImage, additionalContext]);
 
   const handleReset = useCallback(() => {
     setCapturedImage(null);
@@ -325,39 +418,6 @@ export const ScanScreen: React.FC = () => {
     responseRef.current = '';
   }, []);
 
-  const handleExtractText = useCallback(async () => {
-    if (!capturedImage?.uri) {
-      Alert.alert('No Image', 'Please capture or select an image first.');
-      return;
-    }
-
-    setIsExtractingText(true);
-    setStatusMessage('Extracting text...');
-
-    try {
-      const result = await TextRecognition.recognize(capturedImage.uri);
-      
-      if (!result || !result.text) {
-        Alert.alert('No Text Found', 'Could not find any text in this image.');
-        setIsExtractingText(false);
-        setStatusMessage('');
-        return;
-      }
-
-      setStatusMessage('Creating chat room...');
-      const ocrText = result.text;
-      const roomId = await ChatBackend.createRoom(ocrText);
-      
-      handleReset();
-      navigation.navigate('Chat', { roomId });
-    } catch (error: any) {
-      console.error('OCR Error:', error);
-      Alert.alert('OCR Failed', error.message || 'Failed to extract text.');
-    } finally {
-      setIsExtractingText(false);
-      setStatusMessage('');
-    }
-  }, [capturedImage, navigation, handleReset]);
 
   const handlePlayTTS = async () => {
     if (!analysisResult) return;
@@ -369,7 +429,7 @@ export const ScanScreen: React.FC = () => {
       setStatusMessage('Synthesizing speech...');
       const cleanResult = analysisResult.replace(/[*#]/g, ''); // Basic markdown symbol cleanup
       const synthResult = await RunAnywhere.synthesize(cleanResult, { voice: '0', rate: 1.0 });
-      
+
       if (synthResult.audioData) {
         setStatusMessage('Playing audio...');
         await playBase64Audio(synthResult.audioData);
@@ -385,19 +445,26 @@ export const ScanScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      
+
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.headerDot}>●</Text>
+          <Image
+            source={require('../assets/logo.png')}
+            style={styles.headerLogo}
+            resizeMode="contain"
+          />
           <Text style={styles.headerTitle}>Sahayak AI</Text>
         </View>
-        <TouchableOpacity style={styles.headerSettingsBtn}>
-          <Text style={styles.headerSettingsIcon}>⚙️</Text>
+        <TouchableOpacity
+          style={styles.headerSettingsBtn}
+          onPress={() => navigation.navigate('Settings')}
+        >
+          <MaterialCommunityIcons name="account-outline" size={22} color="#475569" />
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -413,6 +480,7 @@ export const ScanScreen: React.FC = () => {
               <View style={[styles.cornerBL, styles.corner]} />
               <View style={[styles.cornerBR, styles.corner]} />
               <View style={styles.retakeBadge}>
+                <MaterialCommunityIcons name="refresh" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
                 <Text style={styles.retakeText}>Tap to retake</Text>
               </View>
             </TouchableOpacity>
@@ -425,7 +493,7 @@ export const ScanScreen: React.FC = () => {
                 <View style={[styles.cornerTR, styles.corner]} />
                 <View style={[styles.cornerBL, styles.corner]} />
                 <View style={[styles.cornerBR, styles.corner]} />
-                <Text style={styles.placeholderIcon}>📷</Text>
+                <MaterialCommunityIcons name="camera-plus-outline" size={64} color="#94A3B8" />
               </View>
             </View>
           )}
@@ -433,71 +501,46 @@ export const ScanScreen: React.FC = () => {
           {/* Camera/Gallery Buttons */}
           <View style={styles.captureButtons}>
             <TouchableOpacity style={styles.captureBtn} onPress={handleCameraCapture}>
-              <View style={styles.captureBtnInner}>
-                <Text style={styles.captureBtnIcon}>📸</Text>
-              </View>
+              <LinearGradient
+                colors={['#1B3A5C', '#102A43']}
+                style={styles.captureBtnInner}
+              >
+                <MaterialCommunityIcons name="camera" size={26} color="#FFFFFF" />
+              </LinearGradient>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.captureBtn} onPress={handleGalleryPick}>
               <View style={[styles.captureBtnInner, styles.galleryBtnInner]}>
-                <Text style={styles.captureBtnIcon}>🖼️</Text>
+                <MaterialCommunityIcons name="image-multiple" size={26} color="#1B3A5C" />
               </View>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Context Input */}
-        <View style={styles.contextSection}>
-          <View style={styles.contextInputRow}>
-            <TextInput
-              style={styles.contextInput}
-              placeholder="Add context or ask a question..."
-              placeholderTextColor="#94A3B8"
-              value={additionalContext}
-              onChangeText={setAdditionalContext}
-              multiline
-              numberOfLines={1}
-            />
-            <TouchableOpacity style={styles.contextActionBtn}>
-              <Text style={styles.contextActionIcon}>✨</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         {/* Analyze Scan Button */}
         <TouchableOpacity
-          style={[styles.analyzeBtn, (!capturedImage || isAnalyzing || isExtractingText) && styles.analyzeBtnDisabled]}
+          style={[styles.analyzeBtn, (!capturedImage || isAnalyzing) && styles.analyzeBtnDisabled]}
           onPress={handleAnalyze}
-          disabled={!capturedImage || isAnalyzing || isExtractingText}
+          disabled={!capturedImage || isAnalyzing}
         >
-          {isAnalyzing ? (
-            <View style={styles.analyzingRow}>
-              <ActivityIndicator size="small" color="#FFFFFF" />
-              <Text style={styles.analyzeBtnText}>
-                {statusMessage || 'Analyzing...'}
-              </Text>
-            </View>
-          ) : (
-            <Text style={styles.analyzeBtnText}>Analyze Scan</Text>
-          )}
-        </TouchableOpacity>
-
-        {/* OCR Button */}
-        <TouchableOpacity
-          style={[styles.ocrBtn, (!capturedImage || isAnalyzing || isExtractingText) && styles.analyzeBtnDisabled]}
-          onPress={handleExtractText}
-          disabled={!capturedImage || isAnalyzing || isExtractingText}
-        >
-          {isExtractingText ? (
-            <View style={styles.analyzingRow}>
-              <ActivityIndicator size="small" color="#1B3A5C" />
-              <Text style={styles.ocrBtnText}>
-                {statusMessage || 'Extracting...'}
-              </Text>
-            </View>
-          ) : (
-            <Text style={styles.ocrBtnText}>📄 Extract Text (OCR)</Text>
-          )}
+          <LinearGradient
+            colors={(!capturedImage || isAnalyzing) ? ['#94A3B8', '#64748B'] : ['#1B3A5C', '#102A43']}
+            style={styles.btnGradient}
+          >
+            {isAnalyzing ? (
+              <View style={styles.analyzingRow}>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+                <Text style={styles.analyzeBtnText}>
+                  {statusMessage || 'Analyzing...'}
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.btnInner}>
+                <MaterialCommunityIcons name="brain" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+                <Text style={styles.analyzeBtnText}>Analyze Scan</Text>
+              </View>
+            )}
+          </LinearGradient>
         </TouchableOpacity>
 
         {/* Download Progress Bar */}
@@ -523,11 +566,11 @@ export const ScanScreen: React.FC = () => {
           <View style={styles.resultCard}>
             <View style={styles.resultHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={styles.resultHeaderIcon}>🧠</Text>
+                <MaterialCommunityIcons name="creation" size={22} color="#1B3A5C" style={{ marginRight: 8 }} />
                 <Text style={styles.resultHeaderText}>AI Analysis</Text>
               </View>
               <TouchableOpacity onPress={handlePlayTTS} style={styles.ttsBtn} disabled={isAnalyzing}>
-                <Text style={styles.ttsIcon}>🔊</Text>
+                <MaterialCommunityIcons name="volume-high" size={22} color="#1B3A5C" />
               </TouchableOpacity>
             </View>
             <View style={styles.resultDivider} />
@@ -559,7 +602,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 12,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 40) + 8 : 12,
     paddingBottom: 12,
     backgroundColor: '#FFFFFF',
   },
@@ -567,47 +610,54 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  headerDot: {
-    fontSize: 16,
-    color: '#1B3A5C',
-    marginRight: 8,
+  headerLogo: {
+    width: 28,
+    height: 28,
+    marginRight: 10,
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#1E293B',
-    letterSpacing: -0.3,
+    fontWeight: '800',
+    color: '#0F2544',
+    letterSpacing: -0.5,
   },
   headerSettingsBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F0F4F8',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F8FAFC',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  headerSettingsIcon: {
-    fontSize: 18,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 20,
+    paddingTop: 8,
   },
   viewfinderCard: {
-    backgroundColor: '#F0F4F8',
-    borderRadius: 24,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 28,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    elevation: 2,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
   },
   imagePreviewContainer: {
     width: '100%',
     height: width - 72,
-    borderRadius: 16,
+    borderRadius: 20,
     overflow: 'hidden',
     position: 'relative',
-    backgroundColor: '#E2E8F0',
+    backgroundColor: '#F1F5F9',
   },
   imagePreview: {
     width: '100%',
@@ -620,278 +670,243 @@ const styles = StyleSheet.create({
   },
   placeholderLabel: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#64748B',
-    marginBottom: 12,
+    marginBottom: 16,
     textAlign: 'center',
   },
   viewfinderFrame: {
     width: '100%',
-    height: width * 0.6,
-    borderRadius: 16,
-    backgroundColor: '#E2E8F0',
+    height: width * 0.65,
+    borderRadius: 20,
+    backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
     overflow: 'hidden',
-  },
-  placeholderIcon: {
-    fontSize: 48,
-    opacity: 0.4,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderStyle: 'dashed',
   },
   corner: {
     position: 'absolute',
-    width: 28,
-    height: 28,
+    width: 32,
+    height: 32,
     borderColor: '#1B3A5C',
-    borderWidth: 3,
+    borderWidth: 4,
   },
   cornerTL: {
-    top: 12,
-    left: 12,
+    top: 16,
+    left: 16,
     borderRightWidth: 0,
     borderBottomWidth: 0,
-    borderTopLeftRadius: 8,
+    borderTopLeftRadius: 12,
   },
   cornerTR: {
-    top: 12,
-    right: 12,
+    top: 16,
+    right: 16,
     borderLeftWidth: 0,
     borderBottomWidth: 0,
-    borderTopRightRadius: 8,
+    borderTopRightRadius: 12,
   },
   cornerBL: {
-    bottom: 12,
-    left: 12,
+    bottom: 16,
+    left: 16,
     borderRightWidth: 0,
     borderTopWidth: 0,
-    borderBottomLeftRadius: 8,
+    borderBottomLeftRadius: 12,
   },
   cornerBR: {
-    bottom: 12,
-    right: 12,
+    bottom: 16,
+    right: 16,
     borderLeftWidth: 0,
     borderTopWidth: 0,
-    borderBottomRightRadius: 8,
+    borderBottomRightRadius: 12,
   },
   retakeBadge: {
     position: 'absolute',
     bottom: 16,
     alignSelf: 'center',
-    backgroundColor: 'rgba(27, 58, 92, 0.8)',
+    backgroundColor: 'rgba(15, 37, 68, 0.85)',
     paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingVertical: 10,
+    borderRadius: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   retakeText: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '800',
   },
   captureButtons: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 20,
-    marginTop: 16,
+    gap: 24,
+    marginTop: 24,
   },
   captureBtn: {
-    borderRadius: 28,
-    overflow: 'hidden',
+    borderRadius: 32,
+    elevation: 6,
+    shadowColor: '#1B3A5C',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
   },
   captureBtnInner: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: '#1B3A5C',
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 3,
-    shadowColor: '#1B3A5C',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
   },
   galleryBtnInner: {
-    backgroundColor: '#2B5F8E',
-  },
-  captureBtnIcon: {
-    fontSize: 22,
-  },
-  contextSection: {
-    marginBottom: 16,
-  },
-  contextInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0F4F8',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  contextInput: {
-    flex: 1,
-    fontSize: 14,
-    color: '#1E293B',
-    paddingVertical: 12,
-    minHeight: 46,
-  },
-  contextActionBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#E2E8F0',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 8,
-  },
-  contextActionIcon: {
-    fontSize: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#F1F5F9',
   },
   analyzeBtn: {
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: '#1B3A5C',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-    elevation: 4,
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginBottom: 16,
+    elevation: 6,
     shadowColor: '#1B3A5C',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
   },
   analyzeBtnDisabled: {
-    opacity: 0.5,
     elevation: 0,
+    shadowOpacity: 0,
+    opacity: 0.7,
+  },
+  btnGradient: {
+    paddingVertical: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   analyzeBtnText: {
-    fontSize: 16,
-    fontWeight: '700',
     color: '#FFFFFF',
-    letterSpacing: 0.3,
-  },
-  ocrBtn: {
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: '#E8EEF4',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-    borderWidth: 1.5,
-    borderColor: '#1B3A5C',
-  },
-  ocrBtnText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1B3A5C',
-    letterSpacing: 0.3,
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   analyzingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
   },
   progressContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-    gap: 12,
+    marginBottom: 20,
+    gap: 14,
+    paddingHorizontal: 4,
   },
   progressBarBg: {
     flex: 1,
-    height: 8,
-    backgroundColor: '#E2E8F0',
-    borderRadius: 4,
+    height: 10,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 5,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   progressBarFill: {
     height: '100%',
     backgroundColor: '#1B3A5C',
-    borderRadius: 4,
+    borderRadius: 5,
   },
   progressText: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '800',
     color: '#1B3A5C',
-    width: 40,
+    width: 45,
     textAlign: 'right',
   },
   statusCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F0F4F8',
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 16,
-    gap: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 18,
+    padding: 18,
+    marginBottom: 20,
+    gap: 14,
+    borderWidth: 1.5,
+    borderColor: '#F1F5F9',
   },
   statusText: {
     flex: 1,
-    fontSize: 14,
-    color: '#64748B',
-    fontWeight: '500',
+    fontSize: 15,
+    color: '#475569',
+    fontWeight: '600',
   },
   resultCard: {
-    backgroundColor: '#F0F4F8',
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 24,
+    padding: 22,
+    borderWidth: 1.5,
+    borderColor: '#F1F5F9',
+    elevation: 3,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    marginBottom: 40,
   },
   resultHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 12,
-  },
-  resultHeaderIcon: {
-    fontSize: 22,
+    justifyContent: 'space-between',
+    marginBottom: 16,
   },
   resultHeaderText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1E293B',
+    fontSize: 19,
+    fontWeight: '800',
+    color: '#0F172A',
   },
   ttsBtn: {
-    padding: 6,
-    backgroundColor: '#F0F4F8',
-    borderRadius: 16,
-    marginLeft: 'auto',
-  },
-  ttsIcon: {
-    fontSize: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#F1F5F9',
   },
   resultDivider: {
-    height: 1,
-    backgroundColor: '#E2E8F0',
-    marginBottom: 14,
+    height: 2,
+    backgroundColor: '#F1F5F9',
+    marginBottom: 18,
   },
   resultText: {
-    fontSize: 14,
+    fontSize: 15,
     color: '#334155',
-    lineHeight: 22,
+    lineHeight: 24,
+    fontWeight: '500',
   },
   streamingIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    gap: 10,
+    marginTop: 18,
+    paddingTop: 18,
+    borderTopWidth: 2,
+    borderTopColor: '#F1F5F9',
   },
   streamingText: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#1B3A5C',
-    fontWeight: '500',
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
 });

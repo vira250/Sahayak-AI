@@ -1,6 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, ActivityIndicator } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+  Image,
+} from 'react-native';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation, CommonActions } from '@react-navigation/native';
 import { useModelService } from '../services/ModelService';
 import { AppColors } from '../theme';
@@ -18,7 +26,7 @@ const ProgressItem: React.FC<{
         <Text style={styles.cardLabel}>{label}</Text>
         <View style={styles.statusContainer}>
           {isLoaded ? (
-            <Text style={[styles.cardStatus, { color: AppColors.success }]}>Ready</Text>
+            <MaterialCommunityIcons name="check-circle" size={22} color={AppColors.success} />
           ) : isDownloading ? (
             <Text style={styles.cardStatus}>{Math.round(progress)}%</Text>
           ) : isLoading ? (
@@ -29,11 +37,14 @@ const ProgressItem: React.FC<{
         </View>
       </View>
       <View style={styles.progressBarBg}>
-        <View 
+        <View
           style={[
-            styles.progressBarFill, 
-            { width: `${isLoaded ? 100 : progress}%`, backgroundColor: isLoaded ? AppColors.success : '#1B3A5C' }
-          ]} 
+            styles.progressBarFill,
+            {
+              width: `${isLoaded ? 100 : progress}%`,
+              backgroundColor: isLoaded ? AppColors.success : '#1B3A5C',
+            },
+          ]}
         />
       </View>
     </View>
@@ -66,14 +77,20 @@ export const ModelDownloadScreen: React.FC = () => {
     );
   };
 
-  const allReady = modelService.isLLMLoaded && 
-                   modelService.isSTTLoaded && 
-                   modelService.isTTSLoaded &&
-                   modelService.isIMGLoaded;
+  const allReady =
+    modelService.isLLMLoaded &&
+    modelService.isSTTLoaded &&
+    modelService.isTTSLoaded &&
+    modelService.isIMGLoaded; // set only after both img + imgProj finish
 
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        <Image 
+          source={require('../assets/logo.png')} 
+          style={styles.logo} 
+          resizeMode="contain" 
+        />
         <Text style={styles.title}>Setup Sahayak AI</Text>
         <Text style={styles.subtitle}>
           To provide the best experience, we need to download and load some AI models. This happens only once!
@@ -108,6 +125,13 @@ export const ModelDownloadScreen: React.FC = () => {
             isLoading={modelService.isIMGLoading}
             isLoaded={modelService.isIMGLoaded}
           />
+          <ProgressItem
+            label="Vision Projector (MMProj)"
+            progress={modelService.imgProjDownloadProgress}
+            isDownloading={modelService.isIMGProjDownloading}
+            isLoading={false}
+            isLoaded={modelService.isIMGLoaded}
+          />
         </View>
 
         <View style={styles.actionContainer}>
@@ -117,21 +141,32 @@ export const ModelDownloadScreen: React.FC = () => {
               onPress={handleDownloadAll}
               disabled={isDownloadingAll}
             >
-              <Text style={styles.buttonText}>
-                {isDownloadingAll ? 'Downloading Models...' : 'Download & Setup All'}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <MaterialCommunityIcons 
+                    name={isDownloadingAll ? 'loading' : 'download'} 
+                    size={22} 
+                    color="#FFFFFF" 
+                    style={{ marginRight: 10 }} 
+                />
+                <Text style={styles.buttonText}>
+                  {isDownloadingAll ? 'Downloading Models...' : 'Download & Setup All'}
+                </Text>
+              </View>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
               style={[styles.mainButton, styles.successButton]}
               onPress={handleStart}
             >
-              <Text style={styles.buttonText}>Let's Get Started!</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={styles.buttonText}>Let's Get Started!</Text>
+                <MaterialCommunityIcons name="arrow-right" size={22} color="#FFFFFF" style={{ marginLeft: 10 }} />
+              </View>
             </TouchableOpacity>
           )}
-          
+
           <Text style={styles.infoText}>
-            Total size: ~500MB. Please use Wi-Fi for faster download.
+            Total size: ~2GB. Please use Wi-Fi for faster download.
           </Text>
         </View>
       </ScrollView>
@@ -146,8 +181,13 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 24,
-    paddingTop: 80,
+    paddingTop: 60,
     alignItems: 'center',
+  },
+  logo: {
+    width: 120,
+    height: 120,
+    marginBottom: 20,
   },
   title: {
     fontSize: 32,

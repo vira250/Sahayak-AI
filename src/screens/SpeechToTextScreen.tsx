@@ -10,6 +10,7 @@ import {
   Platform,
   PermissionsAndroid,
 } from 'react-native';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import { RunAnywhere } from '@runanywhere/core';
 import { AppColors } from '../theme';
@@ -208,14 +209,14 @@ export const SpeechToTextScreen: React.FC = () => {
           ) : isTranscribing ? (
             <>
               <View style={styles.loadingContainer}>
-                <Text style={styles.loadingIcon}>⏳</Text>
+                <MaterialCommunityIcons name="timer-sand" size={48} color={AppColors.textMuted} />
               </View>
               <Text style={styles.statusTitle}>Transcribing...</Text>
             </>
           ) : (
             <>
               <View style={styles.micContainer}>
-                <Text style={styles.micIcon}>🎤</Text>
+                <MaterialCommunityIcons name="microphone" size={48} color={AppColors.accentViolet} />
               </View>
               <Text style={styles.statusTitle}>Tap to Record</Text>
               <Text style={styles.statusSubtitle}>On-device speech recognition (WAV 16kHz)</Text>
@@ -266,7 +267,11 @@ export const SpeechToTextScreen: React.FC = () => {
             end={{ x: 1, y: 0 }}
             style={styles.recordButton}
           >
-            <Text style={styles.recordIcon}>{isRecording ? '⏹' : '🎤'}</Text>
+            <MaterialCommunityIcons 
+              name={isRecording ? 'stop' : 'microphone'} 
+              size={28} 
+              color="#FFFFFF" 
+            />
             <Text style={styles.recordButtonText}>
               {isRecording ? 'Stop Recording' : 'Start Recording'}
             </Text>

@@ -49,14 +49,8 @@ export class RoomService {
       rooms.unshift(newRoom); // Add to top
       await AsyncStorage.setItem(ROOMS_LIST_KEY, JSON.stringify(rooms));
 
-      const initialMessage: ChatMessage = {
-        text: `I've extracted the following text from your scan:\n\n"${contextText}"\n\nWhat would you like to ask about it?`,
-        isUser: false,
-        timestamp: new Date(),
-      };
-
-      // Create message list for the room with the initial message
-      await AsyncStorage.setItem(`${ROOM_PREFIX}${roomId}`, JSON.stringify([initialMessage]));
+      // Create empty message list for the room
+      await AsyncStorage.setItem(`${ROOM_PREFIX}${roomId}`, JSON.stringify([]));
 
       return roomId;
     } catch (error) {

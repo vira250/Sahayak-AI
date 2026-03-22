@@ -8,6 +8,7 @@ import {
   StyleSheet,
   NativeModules,
 } from 'react-native';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import RNFS from 'react-native-fs';
 import { RunAnywhere } from '@runanywhere/core';
@@ -152,9 +153,12 @@ export const TextToSpeechScreen: React.FC = () => {
             numberOfLines={5}
           />
           <View style={styles.inputFooter}>
-            <Text style={styles.characterCount}>
-              📝 {text.length} characters
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <MaterialCommunityIcons name="pencil-outline" size={14} color={AppColors.textMuted} style={{ marginRight: 4 }} />
+              <Text style={styles.characterCount}>
+                {text.length} characters
+              </Text>
+            </View>
             {text.length > 0 && (
               <TouchableOpacity onPress={() => setText('')}>
                 <Text style={styles.clearText}>Clear</Text>
@@ -167,9 +171,9 @@ export const TextToSpeechScreen: React.FC = () => {
         <View style={styles.controlsCard}>
           <Text style={styles.controlLabel}>Speech Rate</Text>
           <View style={styles.sliderContainer}>
-            <Text style={styles.sliderIcon}>🐌</Text>
+            <MaterialCommunityIcons name="turtle" size={24} color={AppColors.textMuted} />
             <Text style={styles.sliderValue}>{speechRate.toFixed(1)}x</Text>
-            <Text style={styles.sliderIcon}>🚀</Text>
+            <MaterialCommunityIcons name="rocket-launch-outline" size={24} color={AppColors.accentPink} />
           </View>
           <View style={styles.rateButtons}>
             {[0.5, 0.75, 1.0, 1.5, 2.0].map((rate) => (
@@ -207,12 +211,12 @@ export const TextToSpeechScreen: React.FC = () => {
             </>
           ) : isSynthesizing ? (
             <>
-              <Text style={styles.loadingIcon}>⏳</Text>
+              <MaterialCommunityIcons name="timer-sand" size={48} color={AppColors.textMuted} style={{ marginBottom: 16 }} />
               <Text style={styles.playbackStatus}>Synthesizing...</Text>
             </>
           ) : (
             <>
-              <Text style={styles.playbackIcon}>🔊</Text>
+              <MaterialCommunityIcons name="volume-high" size={48} color={AppColors.accentPink} style={{ marginBottom: 16 }} />
               <Text style={styles.playbackStatus}>Tap to synthesize</Text>
             </>
           )}
@@ -230,9 +234,11 @@ export const TextToSpeechScreen: React.FC = () => {
               end={{ x: 1, y: 0 }}
               style={styles.playButton}
             >
-              <Text style={styles.playButtonIcon}>
-                {isSynthesizing ? '⏳' : isPlaying ? '⏹' : '▶️'}
-              </Text>
+              <MaterialCommunityIcons 
+                name={isSynthesizing ? 'timer-sand' : isPlaying ? 'stop' : 'play'} 
+                size={32} 
+                color="#FFFFFF" 
+              />
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -249,7 +255,7 @@ export const TextToSpeechScreen: React.FC = () => {
               <Text style={styles.sampleText} numberOfLines={2}>
                 {sample}
               </Text>
-              <Text style={styles.sampleIcon}>➕</Text>
+              <MaterialCommunityIcons name="plus" size={20} color={AppColors.accentPink + '99'} style={{ marginLeft: 8 }} />
             </TouchableOpacity>
           ))}
         </View>

@@ -10,6 +10,7 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import {
   RunAnywhere,
@@ -298,7 +299,7 @@ export const ToolCallingScreen: React.FC = () => {
       >
         {logs.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>🛠</Text>
+            <MaterialCommunityIcons name="tools" size={56} color={AppColors.textMuted} style={{ marginBottom: 16 }} />
             <Text style={styles.emptyTitle}>Tool Calling Test</Text>
             <Text style={styles.emptySubtitle}>
               Register tools, then ask the model to use them.{'\n'}
@@ -309,7 +310,7 @@ export const ToolCallingScreen: React.FC = () => {
           logs.map(log => (
             <View key={log.id} style={[styles.logEntry, styles[`log_${log.type}`]]}>
               <View style={styles.logHeader}>
-                <Text style={styles.logIcon}>{LOG_ICONS[log.type]}</Text>
+                <MaterialCommunityIcons name={LOG_ICONS[log.type]} size={14} color={AppColors.textPrimary} />
                 <Text style={styles.logTitle}>{log.title}</Text>
                 <Text style={styles.logTime}>
                   {log.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
@@ -362,7 +363,7 @@ export const ToolCallingScreen: React.FC = () => {
               end={{ x: 1, y: 0 }}
               style={[styles.sendButton, (!inputText.trim() || isRunning) && styles.sendButtonDisabled]}
             >
-              <Text style={styles.sendIcon}>▶</Text>
+              <MaterialCommunityIcons name="play" size={24} color="#FFFFFF" />
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -374,12 +375,12 @@ export const ToolCallingScreen: React.FC = () => {
 // ─── Constants ─────────────────────────────────────────────────
 
 const LOG_ICONS: Record<LogType, string> = {
-  info: 'ℹ️',
-  prompt: '💬',
-  tool_call: '🔧',
-  tool_result: '📦',
-  response: '🤖',
-  error: '❌',
+  info: 'information-outline',
+  prompt: 'chat-processing-outline',
+  tool_call: 'cog-play-outline',
+  tool_result: 'package-variant-closed',
+  response: 'robot',
+  error: 'alert-circle-outline',
 };
 
 // ─── Styles ────────────────────────────────────────────────────

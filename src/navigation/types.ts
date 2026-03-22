@@ -10,4 +10,6 @@ export type RootStackParamList = {
   SmartNotes: undefined;
   Splash: undefined;
   ModelDownload: undefined;
+  Settings: undefined;
+  MeshSOS: undefined;
 };

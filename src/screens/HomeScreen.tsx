@@ -9,10 +9,13 @@ import {
   Dimensions,
   SafeAreaView,
   Platform,
+  Image,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
+import { ChatMessage, ModelLoaderWidget, BottomNav } from '../components';
 
 const { width } = Dimensions.get('window');
 
@@ -55,10 +58,14 @@ const CapabilityCard: React.FC<{
       style={styles.capGradient}
     >
       <View style={styles.capIconBg}>
-        <Text style={styles.capIcon}>{icon}</Text>
+        <MaterialCommunityIcons
+          name={icon}
+          size={22}
+          color={colorPrimary === '#F0F4F8' ? '#1B3A5C' : '#FFFFFF'}
+        />
       </View>
-      <Text style={styles.capTitle}>{title}</Text>
-      <Text style={styles.capSubtitle}>{subtitle}</Text>
+      <Text style={[styles.capTitle, colorPrimary === '#1B3A5C' && { color: '#FFFFFF' }]}>{title}</Text>
+      <Text style={[styles.capSubtitle, colorPrimary === '#1B3A5C' && { color: 'rgba(255,255,255,0.7)' }]}>{subtitle}</Text>
     </LinearGradient>
   </TouchableOpacity>
 );
@@ -72,7 +79,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       {/* Top Header Bar */}
       <View style={styles.topBar}>
         <View style={styles.logoRow}>
-          <Text style={styles.logoShield}>🛡️</Text>
+          <Image
+            source={require('../assets/logo.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
           <Text style={styles.logoText}>Sahayak AI</Text>
         </View>
         <View style={styles.statusRow}>
@@ -90,7 +101,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         {/* Greeting Section */}
         <View style={styles.greetingContainer}>
           <Text style={styles.greetingTitle}>Namaste,</Text>
-          <Text style={styles.greetingSubtitle}>How can I help you today?</Text>
         </View>
 
         {/* Quick Chat Input Launcher */}
@@ -100,10 +110,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           onPress={() => navigation.navigate('Chat')}
         >
           <View style={styles.searchInner}>
-            <Text style={styles.searchIcon}>✨</Text>
+            <MaterialCommunityIcons name="sparkles" size={24} color="#1B3A5C" style={{ marginRight: 12 }} />
             <Text style={styles.searchText}>Ask Dr. Sahayak...</Text>
             <View style={styles.searchMicBtn}>
-              <Text style={styles.searchMicIcon}>🎤</Text>
+              <MaterialCommunityIcons name="microphone" size={20} color="#1B3A5C" />
             </View>
           </View>
         </TouchableOpacity>
@@ -115,7 +125,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
         <View style={styles.gridRow}>
           <CapabilityCard
-            icon="💬"
+            icon="message-text-outline"
             title="Assistant Chat"
             subtitle="Text & Voice AI"
             colorPrimary="#1B3A5C"
@@ -127,7 +137,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
         <View style={styles.gridRow}>
           <CapabilityCard
-            icon="🔍"
+            icon="camera-outline"
             title="Visual AI"
             subtitle="Scan & OCR"
             colorPrimary="#F0F4F8"
@@ -135,7 +145,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             onPress={() => navigation.navigate('Scan')}
           />
           <CapabilityCard
-            icon="📝"
+            icon="note-text-outline"
             title="Smart Notes"
             subtitle="Record meetings"
             colorPrimary="#F0F4F8"
@@ -146,20 +156,20 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
         <View style={styles.gridRow}>
           <CapabilityCard
-            icon="🔒"
+            icon="shield-lock-outline"
             title="Secure Vault"
             subtitle="Private storage"
             colorPrimary="#F0F4F8"
             colorSecondary="#E2E8F0"
-            onPress={() => {}}
+            onPress={() => { }}
           />
           <CapabilityCard
-            icon="🚨"
+            icon="alert-octagon-outline"
             title="Emergency"
             subtitle="SOS Contacts"
             colorPrimary="#FEE2E2"
             colorSecondary="#FECACA"
-            onPress={() => {}}
+            onPress={() => navigation.navigate('MeshSOS')}
           />
         </View>
 
@@ -172,9 +182,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           activeOpacity={0.8}
           onPress={() => navigation.navigate('History')}
         >
-          <Text style={styles.viewHistoryIcon}>🕘</Text>
+          <MaterialCommunityIcons name="history" size={22} color="#1B3A5C" style={{ marginRight: 14 }} />
           <Text style={styles.viewHistoryText}>View Chat History</Text>
-          <Text style={styles.viewHistoryArrow}>→</Text>
+          <MaterialCommunityIcons name="chevron-right" size={20} color="#94A3B8" />
         </TouchableOpacity>
 
         {/* Extra spacing for bottom nav */}
@@ -182,35 +192,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       </ScrollView>
 
       {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Home')}>
-          <View style={[styles.navIconContainer, styles.navItemActive]}>
-            <Text style={styles.navIcon}>🏠</Text>
-          </View>
-          <Text style={[styles.navLabel, styles.navLabelActive]}>HOME</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('History')}>
-          <View style={styles.navIconContainer}>
-            <Text style={styles.navIcon}>🕘</Text>
-          </View>
-          <Text style={styles.navLabel}>HISTORY</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Scan')}>
-          <View style={styles.navIconContainer}>
-            <Text style={styles.navIcon}>🔍</Text>
-          </View>
-          <Text style={styles.navLabel}>SCAN</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem}>
-          <View style={styles.navIconContainer}>
-            <Text style={styles.navIcon}>⚙️</Text>
-          </View>
-          <Text style={styles.navLabel}>SETTINGS</Text>
-        </TouchableOpacity>
-      </View>
+      <BottomNav activeTab="Home" />
     </SafeAreaView>
   );
 };
@@ -232,8 +214,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  logoShield: {
-    fontSize: 22,
+  logoImage: {
+    width: 35,
+    height: 35,
     marginRight: 8,
   },
   logoText: {
@@ -418,50 +401,10 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     fontWeight: '600',
   },
-  bottomNav: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 85,
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    paddingBottom: Platform.OS === 'ios' ? 20 : 10,
-    paddingTop: 10,
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-  },
-  navItem: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  navIconContainer: {
-    width: 44,
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 16,
-    marginBottom: 4,
-  },
-  navItemActive: {
-    backgroundColor: '#E8EEF4',
-  },
-  navIcon: {
-    fontSize: 20,
-  },
-  navLabel: {
-    fontSize: 10,
+  capabilityLabel: {
+    fontSize: 12,
     fontWeight: '700',
-    color: '#94A3B8',
-  },
-  navLabelActive: {
-    color: '#1B3A5C',
-    fontWeight: '800',
+    color: '#64748B',
+    marginBottom: 12,
   },
 });

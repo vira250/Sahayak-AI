@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Animated, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Animated, Dimensions, Image } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useNavigation, CommonActions } from '@react-navigation/native';
 import { useModelService } from '../services/ModelService';
@@ -19,12 +19,13 @@ export const SplashScreen: React.FC = () => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 1000,
+        duration: 1200,
         useNativeDriver: true,
       }),
       Animated.spring(scaleAnim, {
         toValue: 1,
-        friction: 4,
+        tension: 15,
+        friction: 7,
         useNativeDriver: true,
       }),
     ]).start();
@@ -38,7 +39,7 @@ export const SplashScreen: React.FC = () => {
         const isReady = await checkAllModelsDownloaded();
         const elapsedTime = Date.now() - startTime;
         // If ready, show splash for 1.5s, otherwise 2.5s
-        const minTime = isReady ? 1500 : 2500;
+        const minTime = isReady ? 2000 : 3000;
         const remainingTime = Math.max(0, minTime - elapsedTime);
         
         setTimeout(() => {
@@ -66,7 +67,7 @@ export const SplashScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#FFFFFF', '#EEF2F7', '#E8EEF4']}
+        colors={['#FFFFFF', '#F8FAFC', '#F1F5F9']}
         style={styles.gradient}
       >
         <Animated.View 
@@ -75,12 +76,14 @@ export const SplashScreen: React.FC = () => {
             { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }
           ]}
         >
-          <View style={styles.logoCircle}>
-            <Text style={styles.logoText}>SA</Text>
-          </View>
+          <Image 
+            source={require('../assets/logo.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
           
           <Text style={styles.appName}>Sahayak AI</Text>
-          <Text style={styles.tagline}>Your On-Device AI Companion</Text>
+          <Text style={styles.tagline}>Your Private On-Device AI Companion</Text>
         </Animated.View>
         
         <View style={styles.footer}>
@@ -103,38 +106,26 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
+    paddingHorizontal: 20,
   },
-  logoCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#1B3A5C',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 10,
-    shadowColor: '#1B3A5C',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-  },
-  logoText: {
-    fontSize: 48,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: 2,
+  logoImage: {
+    width: width * 0.65,
+    height: width * 0.65,
+    marginBottom: 8,
   },
   appName: {
     fontSize: 42,
-    fontWeight: '700',
-    color: '#1E293B',
-    marginTop: 24,
-    letterSpacing: 1,
+    fontWeight: '800',
+    color: '#0F2544',
+    marginTop: 0,
+    letterSpacing: -0.5,
   },
   tagline: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#64748B',
-    marginTop: 8,
-    opacity: 0.8,
+    marginTop: 4,
+    fontWeight: '500',
+    textAlign: 'center',
   },
   footer: {
     position: 'absolute',
@@ -144,13 +135,14 @@ const styles = StyleSheet.create({
   version: {
     color: '#94A3B8',
     fontSize: 12,
-    opacity: 0.5,
+    opacity: 0.6,
   },
   poweredBy: {
     color: '#64748B',
     fontSize: 14,
-    marginTop: 4,
-    fontWeight: '500',
-    opacity: 0.7,
+    marginTop: 6,
+    fontWeight: '600',
+    opacity: 0.8,
   },
 });
+

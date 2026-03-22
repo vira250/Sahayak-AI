@@ -121,15 +121,6 @@ class ChatBackendModule(reactContext: ReactApplicationContext) : ReactContextBas
             }
             db.insert(ChatDatabaseHelper.TABLE_ROOMS, null, roomValues)
 
-            // Insert initial AI message
-            val msgValues = ContentValues().apply {
-                put(ChatDatabaseHelper.COL_MSG_ROOM_ID, roomId)
-                put(ChatDatabaseHelper.COL_MSG_TEXT, "I've scanned the document. What would you like to know about it?")
-                put(ChatDatabaseHelper.COL_MSG_IS_USER, 0)
-                put(ChatDatabaseHelper.COL_MSG_TIMESTAMP, now)
-            }
-            db.insert(ChatDatabaseHelper.TABLE_MESSAGES, null, msgValues)
-
             promise.resolve(roomId)
         } catch (e: Exception) {
             promise.reject("CREATE_ROOM_ERROR", e.message, e)

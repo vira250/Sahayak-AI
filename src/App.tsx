@@ -22,6 +22,8 @@ import {
   SmartNotesScreen,
   SplashScreen,
   ModelDownloadScreen,
+  SettingsScreen,
+  MeshSOSScreen,
 } from './screens';
 import { RootStackParamList } from './navigation/types';
 
@@ -122,7 +124,14 @@ const App: React.FC = () => {
             <Stack.Screen
               name="Scan"
               component={ScanScreen}
-              options={{ title: 'Scan' }}
+              options={{
+                headerShown: false,
+                cardStyleInterpolator: CardStyleInterpolators.forNoAnimation,
+                transitionSpec: {
+                  open: { animation: 'timing', config: { duration: 0 } },
+                  close: { animation: 'timing', config: { duration: 0 } },
+                },
+              }}
             />
             <Stack.Screen
               name="ToolCalling"
@@ -148,6 +157,23 @@ const App: React.FC = () => {
               name="SmartNotes"
               component={SmartNotesScreen}
               options={{ title: 'Smart Voice Notes' }}
+            />
+            <Stack.Screen
+              name="Settings"
+              component={SettingsScreen}
+              options={{
+                headerShown: false,
+                cardStyleInterpolator: CardStyleInterpolators.forNoAnimation,
+                transitionSpec: {
+                  open: { animation: 'timing', config: { duration: 0 } },
+                  close: { animation: 'timing', config: { duration: 0 } },
+                },
+              }}
+            />
+            <Stack.Screen
+              name="MeshSOS"
+              component={MeshSOSScreen}
+              options={{ title: 'Mesh SOS' }}
             />
           </Stack.Navigator>
         </NavigationContainer>

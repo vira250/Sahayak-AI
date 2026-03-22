@@ -9,3 +9,5 @@ export * from './VoicePipelineScreen';
 export * from './SmartNotesScreen';
 export * from './SplashScreen';
 export * from './ModelDownloadScreen';
+export * from './SettingScreen';
+export * from './MeshSOSScreen';
