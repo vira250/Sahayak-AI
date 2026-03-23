@@ -127,9 +127,12 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
       setIsLLMLoading(false);
       return true;
     } catch (loadError: any) {
-      console.warn(`Load failed for ${modelId} (${loadError?.message || loadError}), re-downloading...`);
-      // Model file might be corrupted or missing — force re-download
+      console.warn(`Load failed for ${modelId} (${loadError?.message || loadError}), checking fallbacks or re-downloading...`);
       setIsLLMLoading(false);
+      
+      // If qwen failed, we might want to let the fallback loop in downloadAndLoadLLM handle it
+      // unless this is a retry of a fallback model.
+      
       setIsLLMDownloading(true);
       setLLMDownloadProgress(0);
       modelPath = await RunAnywhere.downloadModel(modelId, (progress) => {
@@ -331,7 +334,7 @@ export const registerDefaultModels = async () => {
     id: MODEL_IDS.llm,
     name: 'Qwen2.5 1.5B Instruct Q4_K_M',
     url: 'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf',
-    memoryRequirement: 1_200_000_000,
+    memoryRequirement: 1_000_000_000, // Reduced from 1.2B to be more inclusive
   });
 
   // Fallback: SmolLM2 360M (smaller, lower quality but works on low-RAM devices)
