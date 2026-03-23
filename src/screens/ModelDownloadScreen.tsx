@@ -80,16 +80,15 @@ export const ModelDownloadScreen: React.FC = () => {
   const allReady =
     modelService.isLLMLoaded &&
     modelService.isSTTLoaded &&
-    modelService.isTTSLoaded &&
-    modelService.isIMGLoaded; // set only after both img + imgProj finish
+    modelService.isTTSLoaded;// set only after both img + imgProj finish
 
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Image 
-          source={require('../assets/logo.png')} 
-          style={styles.logo} 
-          resizeMode="contain" 
+        <Image
+          source={require('../assets/logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
         />
         <Text style={styles.title}>Setup Sahayak AI</Text>
         <Text style={styles.subtitle}>
@@ -118,20 +117,7 @@ export const ModelDownloadScreen: React.FC = () => {
             isLoading={modelService.isTTSLoading}
             isLoaded={modelService.isTTSLoaded}
           />
-          <ProgressItem
-            label="Vision Model (See)"
-            progress={modelService.imgDownloadProgress}
-            isDownloading={modelService.isIMGDownloading}
-            isLoading={modelService.isIMGLoading}
-            isLoaded={modelService.isIMGLoaded}
-          />
-          <ProgressItem
-            label="Vision Projector (MMProj)"
-            progress={modelService.imgProjDownloadProgress}
-            isDownloading={modelService.isIMGProjDownloading}
-            isLoading={false}
-            isLoaded={modelService.isIMGLoaded}
-          />
+
         </View>
 
         <View style={styles.actionContainer}>
@@ -142,11 +128,11 @@ export const ModelDownloadScreen: React.FC = () => {
               disabled={isDownloadingAll}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <MaterialCommunityIcons 
-                    name={isDownloadingAll ? 'loading' : 'download'} 
-                    size={22} 
-                    color="#FFFFFF" 
-                    style={{ marginRight: 10 }} 
+                <MaterialCommunityIcons
+                  name={isDownloadingAll ? 'loading' : 'download'}
+                  size={22}
+                  color="#FFFFFF"
+                  style={{ marginRight: 10 }}
                 />
                 <Text style={styles.buttonText}>
                   {isDownloadingAll ? 'Downloading Models...' : 'Download & Setup All'}

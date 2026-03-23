@@ -8,8 +8,6 @@ const MODEL_IDS = {
   llm: 'qwen2.5-1.5b-instruct-q4km',
   stt: 'sherpa-onnx-whisper-tiny.en',
   tts: 'vits-piper-en_US-lessac-medium',
-  img: 'nanollava-q4_0',
-  imgProj: 'nanollava-mmproj-f16',
 } as const;
 
 interface ModelServiceState {
@@ -17,26 +15,20 @@ interface ModelServiceState {
   isLLMDownloading: boolean;
   isSTTDownloading: boolean;
   isTTSDownloading: boolean;
-  isIMGDownloading: boolean;
-  isIMGProjDownloading: boolean;
 
   llmDownloadProgress: number;
   sttDownloadProgress: number;
   ttsDownloadProgress: number;
-  imgDownloadProgress: number;
-  imgProjDownloadProgress: number;
 
   // Load state
   isLLMLoading: boolean;
   isSTTLoading: boolean;
   isTTSLoading: boolean;
-  isIMGLoading: boolean;
 
   // Loaded state
   isLLMLoaded: boolean;
   isSTTLoaded: boolean;
   isTTSLoaded: boolean;
-  isIMGLoaded: boolean;
 
   isVoiceAgentReady: boolean;
 
@@ -44,7 +36,6 @@ interface ModelServiceState {
   downloadAndLoadLLM: () => Promise<void>;
   downloadAndLoadSTT: () => Promise<void>;
   downloadAndLoadTTS: () => Promise<void>;
-  downloadAndLoadIMG: () => Promise<void>;
   downloadAndLoadAllModels: () => Promise<void>;
   unloadAllModels: () => Promise<void>;
   checkAllModelsDownloaded: () => Promise<boolean>;
@@ -73,26 +64,20 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
   const [isLLMDownloading, setIsLLMDownloading] = useState(false);
   const [isSTTDownloading, setIsSTTDownloading] = useState(false);
   const [isTTSDownloading, setIsTTSDownloading] = useState(false);
-  const [isIMGDownloading, setIsIMGDownloading] = useState(false);
-  const [isIMGProjDownloading, setIsIMGProjDownloading] = useState(false);
 
   const [llmDownloadProgress, setLLMDownloadProgress] = useState(0);
   const [sttDownloadProgress, setSTTDownloadProgress] = useState(0);
   const [ttsDownloadProgress, setTTSDownloadProgress] = useState(0);
-  const [imgDownloadProgress, setIMGDownloadProgress] = useState(0);
-  const [imgProjDownloadProgress, setIMGProjDownloadProgress] = useState(0);
 
   // Load state
   const [isLLMLoading, setIsLLMLoading] = useState(false);
   const [isSTTLoading, setIsSTTLoading] = useState(false);
   const [isTTSLoading, setIsTTSLoading] = useState(false);
-  const [isIMGLoading, setIsIMGLoading] = useState(false);
 
   // Loaded state
   const [isLLMLoaded, setIsLLMLoaded] = useState(false);
   const [isSTTLoaded, setIsSTTLoaded] = useState(false);
   const [isTTSLoaded, setIsTTSLoaded] = useState(false);
-  const [isIMGLoaded, setIsIMGLoaded] = useState(false);
   const [hasCompletedSetup, setHasCompletedSetup] = useState(false);
 
   const isVoiceAgentReady = isLLMLoaded && isSTTLoaded && isTTSLoaded;
@@ -260,54 +245,7 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
     }
   }, [isTTSDownloading, isTTSLoading, checkModelDownloaded]);
 
-  // Download and load Image Model + Vision Projector (mmproj)
-  // NOTE: llama.cpp can only hold one model at a time.
-  // Both files are downloaded here; loaded together on-demand for vision tasks.
-  const downloadAndLoadIMG = useCallback(async () => {
-    if (isIMGDownloading || isIMGLoading) return;
 
-    try {
-      // --- Download main vision model (nanollava) ---
-      const isDownloaded = await checkModelDownloaded(MODEL_IDS.img);
-
-      if (!isDownloaded) {
-        setIsIMGDownloading(true);
-        setIMGDownloadProgress(0);
-
-        await RunAnywhere.downloadModel(MODEL_IDS.img, (progress) => {
-          setIMGDownloadProgress(progress.progress * 100);
-        });
-
-        setIsIMGDownloading(false);
-      }
-
-      // --- Download vision projector (mmproj) ---
-      const isProjDownloaded = await checkModelDownloaded(MODEL_IDS.imgProj);
-
-      if (!isProjDownloaded) {
-        setIsIMGProjDownloading(true);
-        setIMGProjDownloadProgress(0);
-
-        await RunAnywhere.downloadModel(MODEL_IDS.imgProj, (progress) => {
-          setIMGProjDownloadProgress(progress.progress * 100);
-        });
-
-        setIsIMGProjDownloading(false);
-      }
-
-      // Both files ready — mark vision as available for on-demand use
-      setIsIMGLoaded(true);
-      setIsIMGLoading(false);
-      console.log('IMG model + mmproj downloaded and ready for on-demand use');
-    } catch (error) {
-      console.error('IMG download error:', error);
-      // Mark as loaded anyway so user can proceed - IMG is optional
-      setIsIMGLoaded(true);
-      setIsIMGDownloading(false);
-      setIsIMGProjDownloading(false);
-      setIsIMGLoading(false);
-    }
-  }, [isIMGDownloading, isIMGLoading, checkModelDownloaded]);
 
   // Check if all models are downloaded
   const [isAllDownloaded, setIsAllDownloadedState] = useState(false);
@@ -316,9 +254,7 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
     const llm = await checkModelDownloaded(MODEL_IDS.llm);
     const stt = await checkModelDownloaded(MODEL_IDS.stt);
     const tts = await checkModelDownloaded(MODEL_IDS.tts);
-    const img = await checkModelDownloaded(MODEL_IDS.img);
-    const imgProj = await checkModelDownloaded(MODEL_IDS.imgProj);
-    const all = llm && stt && tts && img && imgProj;
+    const all = llm && stt && tts;
     setIsAllDownloadedState(all);
     return all;
   }, [checkModelDownloaded]);
@@ -331,9 +267,8 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
       downloadAndLoadLLM(),
       downloadAndLoadSTT(),
       downloadAndLoadTTS(),
-      downloadAndLoadIMG(),
     ]);
-  }, [downloadAndLoadLLM, downloadAndLoadSTT, downloadAndLoadTTS, downloadAndLoadIMG]);
+  }, [downloadAndLoadLLM, downloadAndLoadSTT, downloadAndLoadTTS]);
 
   // Unload all models
   const unloadAllModels = useCallback(async () => {
@@ -344,7 +279,6 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
       setIsLLMLoaded(false);
       setIsSTTLoaded(false);
       setIsTTSLoaded(false);
-      setIsIMGLoaded(false);
     } catch (error) {
       console.error('Error unloading models:', error);
     }
@@ -359,28 +293,21 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
     isLLMDownloading,
     isSTTDownloading,
     isTTSDownloading,
-    isIMGDownloading,
-    isIMGProjDownloading,
     llmDownloadProgress,
     sttDownloadProgress,
     ttsDownloadProgress,
-    imgDownloadProgress,
-    imgProjDownloadProgress,
     isLLMLoading,
     isSTTLoading,
     isTTSLoading,
-    isIMGLoading,
     isLLMLoaded,
     isSTTLoaded,
     isTTSLoaded,
-    isIMGLoaded,
     isVoiceAgentReady,
     isSetupReady,
     hasCompletedSetup,
     downloadAndLoadLLM,
     downloadAndLoadSTT,
     downloadAndLoadTTS,
-    downloadAndLoadIMG,
     downloadAndLoadAllModels,
     unloadAllModels,
     checkAllModelsDownloaded,
@@ -443,20 +370,4 @@ export const registerDefaultModels = async () => {
     memoryRequirement: 65_000_000,
   });
 
-  // Image/Vision Model - NanoLLaVA (~700MB text model)
-  // Downloaded only; loaded on-demand when user opens vision features
-  await LlamaCPP.addModel({
-    id: MODEL_IDS.img,
-    name: 'NanoLLaVA Vision F16',
-    url: 'https://huggingface.co/abetlen/nanollava-gguf/resolve/main/nanollava-text-model-f16.gguf',
-    memoryRequirement: 700_000_000,
-  });
-
-  // Vision Projector - NanoLLaVA mmproj (~900MB, needed for VLM image analysis)
-  await LlamaCPP.addModel({
-    id: MODEL_IDS.imgProj,
-    name: 'NanoLLaVA MMProj F16',
-    url: 'https://huggingface.co/abetlen/nanollava-gguf/resolve/main/nanollava-mmproj-f16.gguf',
-    memoryRequirement: 900_000_000,
-  });
 };

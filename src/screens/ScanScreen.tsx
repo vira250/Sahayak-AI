@@ -26,6 +26,7 @@ import { ChatBackend } from '../services/ChatBackendBridge';
 import { playBase64Audio } from '../utils/AudioPlayer';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import LinearGradient from 'react-native-linear-gradient';
+import { BottomNav } from '../components';
 
 const { width } = Dimensions.get('window');
 
@@ -178,117 +179,7 @@ export const ScanScreen: React.FC = () => {
     );
   }, []);
 
-  // Ensure VLM is downloaded and loaded
-  const ensureVLMReady = useCallback(async (): Promise<boolean> => {
-    // Step 1: Check if VLM is already loaded
-    try {
-      const loaded = await RunAnywhere.isModelLoaded();
-      if (loaded) {
-        console.log('VLM already loaded');
-        return true;
-      }
-    } catch (e) {
-      console.log('isModelLoaded check failed:', e);
-    }
 
-    // Step 2: Get or download VLM text model
-    setStatusMessage('Checking vision model...');
-
-    let textModelPath: string | null = null;
-    let projectorPath: string | null = null;
-
-    try {
-      // Check if text model is downloaded
-      const textInfo = await RunAnywhere.getModelInfo('nanollava-q4_0');
-      const textDownloaded = !!textInfo?.localPath;
-
-      if (textDownloaded) {
-        textModelPath = await RunAnywhere.getModelPath('nanollava-q4_0');
-        console.log('VLM text model already downloaded:', textModelPath);
-      } else {
-        setStatusMessage('Downloading vision model (1/2)...');
-        setDownloadProgress(0);
-        textModelPath = await RunAnywhere.downloadModel('nanollava-q4_0', (p) => {
-          setDownloadProgress(Math.round(p.progress * 100));
-          setStatusMessage(`Downloading vision model (1/2)... ${Math.round(p.progress * 100)}%`);
-        });
-        console.log('VLM text model downloaded:', textModelPath);
-      }
-    } catch (e: any) {
-      console.error('Failed to get/download VLM text model:', e);
-      setStatusMessage('❌ Failed to download vision model');
-      return false;
-    }
-
-    try {
-      // Check if projector is downloaded
-      const projInfo = await RunAnywhere.getModelInfo('nanollava-mmproj-f16');
-      const projDownloaded = !!projInfo?.localPath;
-
-      if (projDownloaded) {
-        projectorPath = await RunAnywhere.getModelPath('nanollava-mmproj-f16');
-        console.log('VLM projector already downloaded:', projectorPath);
-      } else {
-        setStatusMessage('Downloading vision projector (2/2)...');
-        setDownloadProgress(0);
-        projectorPath = await RunAnywhere.downloadModel('nanollava-mmproj-f16', (p) => {
-          setDownloadProgress(Math.round(p.progress * 100));
-          setStatusMessage(`Downloading vision projector (2/2)... ${Math.round(p.progress * 100)}%`);
-        });
-        console.log('VLM projector downloaded:', projectorPath);
-      }
-    } catch (e: any) {
-      console.error('Failed to get/download VLM projector:', e);
-      setStatusMessage('❌ Failed to download vision projector');
-      return false;
-    }
-
-    if (!textModelPath || !projectorPath) {
-      setStatusMessage('❌ Could not locate model files');
-      return false;
-    }
-
-    // Step 3: Unload the text LLM (llama.cpp can only hold one model)
-    setStatusMessage('Preparing vision model...');
-    try {
-      await RunAnywhere.unloadModel();
-      console.log('Text LLM unloaded');
-    } catch (e) {
-      console.log('unloadModel (harmless if not loaded):', e);
-    }
-
-    // Step 4: Load VLM
-    setStatusMessage('Loading vision model...');
-    try {
-      // Try loading with projector path
-      let success = false;
-      try {
-        success = await RunAnywhere.loadModel(textModelPath, { projectorPath });
-      } catch (projErr: any) {
-        console.warn('loadModel with projectorPath failed, trying without:', projErr?.message || projErr);
-        // Fallback: try loading just the text model (may work for some backends)
-        try {
-          success = await RunAnywhere.loadModel(textModelPath);
-        } catch (fallbackErr: any) {
-          console.error('loadModel fallback also failed:', fallbackErr?.message || fallbackErr);
-          success = false;
-        }
-      }
-      if (success) {
-        console.log('VLM loaded successfully!');
-        setStatusMessage('Vision model ready!');
-        return true;
-      } else {
-        console.error('loadVLMModel returned false');
-        setStatusMessage('❌ Vision model failed to load');
-        return false;
-      }
-    } catch (e: any) {
-      console.error('loadVLMModel error:', e);
-      setStatusMessage(`❌ Vision model error: ${e?.message || e}`);
-      return false;
-    }
-  }, []);
 
   const handleAnalyze = useCallback(async () => {
     if (!capturedImage?.uri) {
@@ -586,8 +477,11 @@ export const ScanScreen: React.FC = () => {
           </View>
         ) : null}
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: 100 }} />
       </ScrollView>
+      
+      {/* Bottom Navigation */}
+      <BottomNav activeTab="Scan" />
     </SafeAreaView>
   );
 };

@@ -10,7 +10,7 @@ const { width } = Dimensions.get('window');
 export const SplashScreen: React.FC = () => {
   const navigation = useNavigation();
   const { checkAllModelsDownloaded, isSetupReady } = useModelService();
-  
+
   const fadeAnim = new Animated.Value(0);
   const scaleAnim = new Animated.Value(0.8);
 
@@ -34,14 +34,14 @@ export const SplashScreen: React.FC = () => {
     const initApp = async () => {
       // Show splash for at least 2.5 seconds for branding
       const startTime = Date.now();
-      
+
       try {
         const isReady = await checkAllModelsDownloaded();
         const elapsedTime = Date.now() - startTime;
         // If ready, show splash for 1.5s, otherwise 2.5s
         const minTime = isReady ? 2000 : 3000;
         const remainingTime = Math.max(0, minTime - elapsedTime);
-        
+
         setTimeout(() => {
           navigation.dispatch(
             CommonActions.reset({
@@ -70,22 +70,22 @@ export const SplashScreen: React.FC = () => {
         colors={['#FFFFFF', '#F8FAFC', '#F1F5F9']}
         style={styles.gradient}
       >
-        <Animated.View 
+        <Animated.View
           style={[
-            styles.logoContainer, 
+            styles.logoContainer,
             { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }
           ]}
         >
-          <Image 
+          <Image
             source={require('../assets/logo.png')}
             style={styles.logoImage}
             resizeMode="contain"
           />
-          
+
           <Text style={styles.appName}>Sahayak AI</Text>
           <Text style={styles.tagline}>Your Private On-Device AI Companion</Text>
         </Animated.View>
-        
+
         <View style={styles.footer}>
           <Text style={styles.version}>v1.0.0</Text>
           <Text style={styles.poweredBy}>Powered by RunAnywhere SDK</Text>
@@ -145,4 +145,3 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
 });
-
