@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,23 +10,61 @@ import {
   StatusBar,
   Dimensions,
   Platform,
+  ScrollView,
+  NativeModules,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import LinearGradient from 'react-native-linear-gradient';
+import RNFS from 'react-native-fs';
+import { RunAnywhere, VoiceSessionEvent, VoiceSessionHandle } from '@runanywhere/core';
 import { AuditTimelineService } from '../services/AuditTimelineService';
+import { useModelService } from '../services/ModelService';
+import { AppColors } from '../theme';
 
+// Conditionally import Sound - disabled on iOS via react-native.config.js
+let Sound: any = null;
+if (Platform.OS === 'android') {
+  try {
+    Sound = require('react-native-sound').default;
+  } catch (e) {
+    console.log('react-native-sound not available');
+  }
+}
+
+const { NativeAudioModule } = NativeModules;
 const { width } = Dimensions.get('window');
+
+const EMERGENCY_SYS_PROMPT = `You are Sahayak Rescue, an offline AI first-responder EMT and survival guide. The user is in an emergency situation.
+RULES:
+1. Be extremely concise. Use short sentences.
+2. Give actionable, life-saving advice immediately (e.g., "Apply direct pressure to the wound").
+3. Do not use markdown or complex formatting as this will be read aloud via TTS.
+4. Keep calm and professional. Ask diagnostic questions if needed, one at a time.`;
 
 export const MeshSOSScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
+  const modelService = useModelService();
+  
   const [peersFound, setPeersFound] = useState(0);
   const [status, setStatus] = useState('Initializing Mesh Network...');
+  
+  // Voice Agent State
+  const [isVoiceActive, setIsVoiceActive] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState<string>('AI First-Responder Ready');
+  const [transcripts, setTranscripts] = useState<{ role: 'user' | 'ai', text: string }[]>([]);
+  const [audioLevel, setAudioLevel] = useState(0);
+  
+  const sessionRef = useRef<VoiceSessionHandle | null>(null);
+  const currentSoundRef = useRef<any>(null);
+  const isPlayingRef = useRef<boolean>(false);
 
   // Animations
   const radarAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const voicePulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     // Radar Animation
@@ -82,8 +120,31 @@ export const MeshSOSScreen: React.FC = () => {
       clearTimeout(timer1);
       clearTimeout(timer2);
       clearTimeout(timer3);
+      stopVoiceAgent(); // cleanup
     };
   }, []);
+
+  useEffect(() => {
+    if (isVoiceActive) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(voicePulseAnim, {
+            toValue: 1.1 + (audioLevel * 0.5),
+            duration: 150,
+            useNativeDriver: true,
+          }),
+          Animated.timing(voicePulseAnim, {
+            toValue: 1,
+            duration: 150,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    } else {
+      voicePulseAnim.setValue(1);
+      voicePulseAnim.stopAnimation();
+    }
+  }, [isVoiceActive, audioLevel]);
 
   const handleSOS = () => {
     setStatus('📡 TRANSMITTING SOS TO MESH NETWORK...');
@@ -93,10 +154,7 @@ export const MeshSOSScreen: React.FC = () => {
       severity: 'critical',
       source: 'sos',
       summary: 'User triggered SOS mesh broadcast',
-      details: {
-        peersFound,
-        statusBeforeTrigger: status,
-      },
+      details: { peersFound, statusBeforeTrigger: status },
     });
 
     setTimeout(() => {
@@ -106,12 +164,100 @@ export const MeshSOSScreen: React.FC = () => {
         severity: 'warning',
         source: 'sos',
         summary: 'SOS relay status updated',
-        details: {
-          peersFound,
-          relayStatus: 'SOS Relayed to nearest Search & Rescue relay.',
-        },
+        details: { peersFound, relayStatus: 'SOS Relayed to nearest Search & Rescue relay.' },
       });
     }, 3000);
+  };
+
+  const handleVoiceEvent = useCallback((event: VoiceSessionEvent) => {
+    switch (event.type) {
+      case 'started':
+      case 'listening':
+        setVoiceStatus('Listening for emergency...');
+        setAudioLevel(0.3);
+        break;
+      case 'transcribed':
+        if (event.transcription) {
+          setTranscripts(prev => [...prev.slice(-3), { role: 'user', text: event.transcription! }]);
+        }
+        setVoiceStatus('Analyzing trauma triage...');
+        setAudioLevel(0.5);
+        break;
+      case 'responded':
+        if (event.response) {
+          setTranscripts(prev => [...prev.slice(-3), { role: 'ai', text: event.response! }]);
+        }
+        setVoiceStatus('Speaking instructions...');
+        setAudioLevel(0.8);
+        break;
+      case 'error':
+        setVoiceStatus(`Error: ${event.error}`);
+        setAudioLevel(0);
+        break;
+      case 'stopped':
+        setIsVoiceActive(false);
+        setVoiceStatus('AI First-Responder Ready');
+        setAudioLevel(0);
+        break;
+      default:
+        break;
+    }
+  }, []);
+
+  const startVoiceAgent = async () => {
+    if (!modelService.isVoiceAgentReady) {
+      setVoiceStatus('Models not loaded. Go to Setup.');
+      return;
+    }
+    
+    setIsVoiceActive(true);
+    setVoiceStatus('Starting Rescue AI...');
+    setTranscripts([]);
+
+    try {
+      sessionRef.current = await RunAnywhere.startVoiceSession({
+        onEvent: handleVoiceEvent,
+        continuousMode: true,
+        autoPlayTTS: true,
+        silenceDuration: 1.5,
+        systemPrompt: EMERGENCY_SYS_PROMPT,
+      });
+      void AuditTimelineService.logEvent({
+        type: 'emergency_warning_shown',
+        severity: 'critical',
+        source: 'sos',
+        summary: 'Started AI First-Responder in SOS Mode',
+      });
+    } catch (error) {
+      console.error('Voice agent error:', error);
+      setVoiceStatus(`Error starting AI`);
+      setIsVoiceActive(false);
+    }
+  };
+
+  const stopVoiceAgent = async () => {
+    try {
+      if (Platform.OS === 'ios' && isPlayingRef.current && NativeAudioModule) {
+        await NativeAudioModule.stopPlayback();
+        isPlayingRef.current = false;
+      } else if (currentSoundRef.current) {
+        currentSoundRef.current.stop(() => {
+          currentSoundRef.current?.release();
+          currentSoundRef.current = null;
+        });
+      }
+      
+      if (sessionRef.current) {
+        await sessionRef.current.stop();
+        sessionRef.current = null;
+      }
+      
+      setIsVoiceActive(false);
+      setVoiceStatus('AI First-Responder Ready');
+      setAudioLevel(0);
+    } catch (error) {
+      console.error('Stop voice agent error:', error);
+    }
   };
 
   return (
@@ -123,15 +269,12 @@ export const MeshSOSScreen: React.FC = () => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
            <MaterialCommunityIcons name="close" size={28} color="#FFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Mesh SOS</Text>
+        <Text style={styles.headerTitle}>Mesh SOS + Rescue AI</Text>
         <View style={{ width: 40 }} />
       </View>
 
-      <View style={styles.content}>
-        <Text style={styles.introText}>
-          No Cell Service? Sahayak uses Bluetooth & WiFi Direct to create a secure chain to relay your emergency signal.
-        </Text>
-
+      <ScrollView style={{flex: 1}} contentContainerStyle={styles.content}>
+        
         {/* Radar Visualization */}
         <View style={styles.radarContainer}>
           {[0, 1, 2].map((i) => (
@@ -141,17 +284,9 @@ export const MeshSOSScreen: React.FC = () => {
                 styles.radarCircle,
                 {
                   transform: [
-                    {
-                      scale: radarAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.1, 1.5],
-                      }),
-                    },
+                    { scale: radarAnim.interpolate({ inputRange: [0, 1], outputRange: [0.1, 1.5] }) },
                   ],
-                  opacity: radarAnim.interpolate({
-                    inputRange: [0, 0.5, 1],
-                    outputRange: [0, 0.4, 0],
-                  }),
+                  opacity: radarAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0.4, 0] }),
                 },
               ]}
             />
@@ -180,161 +315,110 @@ export const MeshSOSScreen: React.FC = () => {
           </View>
         </View>
 
-        <View style={styles.instructionCard}>
-          <Text style={styles.instructionTitle}>How it works</Text>
-          <Text style={styles.instructionBody}>
-            Your message will jump from phone to phone until it reaches a device with satellite or cellular connectivity. 
-            Keep your device within 50 meters of other survivors.
+        {/* Rescue AI Agent */}
+        <View style={styles.voiceAgentContainer}>
+          <Text style={styles.voiceTitle}>Offline AI First-Responder</Text>
+          <Text style={styles.voiceSubtitle}>Speak hands-free for immediate trauma care guidance.</Text>
+          
+          <TouchableOpacity 
+            onPress={isVoiceActive ? stopVoiceAgent : startVoiceAgent} 
+            activeOpacity={0.8}
+            style={{ marginVertical: 20 }}
+          >
+            <Animated.View style={[styles.voiceButtonOutline, { transform: [{ scale: voicePulseAnim }] }]}>
+              <LinearGradient
+                colors={isVoiceActive ? ['#ff4b4b', '#C62828'] : ['#1E1E1E', '#333333']}
+                style={styles.voiceButtonInner}
+              >
+                <MaterialCommunityIcons 
+                  name={isVoiceActive ? "microphone" : "microphone-off"} 
+                  size={40} 
+                  color={isVoiceActive ? "#FFF" : "#888"} 
+                />
+              </LinearGradient>
+            </Animated.View>
+          </TouchableOpacity>
+          
+          <Text style={[styles.voiceStatusText, isVoiceActive && { color: '#FF5252', fontWeight: 'bold' }]}>
+            {voiceStatus}
           </Text>
+
+          {/* Transcript Log */}
+          {transcripts.length > 0 && (
+            <View style={styles.transcriptBox}>
+              {transcripts.map((t, i) => (
+                <Text key={i} style={t.role === 'ai' ? styles.aiText : styles.userText}>
+                  {t.role === 'ai' ? '🚑 AI:' : '🗣️ You:'} {t.text}
+                </Text>
+              ))}
+            </View>
+          )}
         </View>
-      </View>
+
+      </ScrollView>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0A0A0A',
-  },
+  container: { flex: 1, backgroundColor: '#0A0A0A' },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20, paddingVertical: 15,
     paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 15 : 15,
   },
-  headerTitle: {
-    color: '#FFF',
-    fontSize: 20,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  content: {
-    flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: 25,
-  },
-  introText: {
-    color: '#888',
-    textAlign: 'center',
-    fontSize: 14,
-    marginTop: 10,
-    lineHeight: 20,
-  },
+  headerTitle: { color: '#FFF', fontSize: 20, fontWeight: '700', letterSpacing: 1 },
+  backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
+  content: { alignItems: 'center', paddingHorizontal: 25, paddingBottom: 50 },
   radarContainer: {
-    width: width * 0.8,
-    height: width * 0.8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginVertical: 40,
+    width: width * 0.7, height: width * 0.7, justifyContent: 'center',
+    alignItems: 'center', marginVertical: 30,
   },
   radarCircle: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-    borderRadius: (width * 0.8) / 2,
-    borderWidth: 2,
-    borderColor: '#C62828',
+    position: 'absolute', width: '100%', height: '100%',
+    borderRadius: (width * 0.7) / 2, borderWidth: 2, borderColor: '#C62828',
   },
-  mainButtonContainer: {
-    backgroundColor: 'rgba(198, 40, 40, 0.2)',
-    padding: 20,
-    borderRadius: 100,
-  },
+  mainButtonContainer: { backgroundColor: 'rgba(198, 40, 40, 0.2)', padding: 15, borderRadius: 100 },
   sosButton: {
-    width: 140,
-    height: 140,
-    backgroundColor: '#C62828',
-    borderRadius: 70,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 20,
-    shadowColor: '#C62828',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 15,
+    width: 120, height: 120, backgroundColor: '#C62828', borderRadius: 60,
+    justifyContent: 'center', alignItems: 'center', elevation: 20,
+    shadowColor: '#C62828', shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5, shadowRadius: 15,
   },
-  sosText: {
-    color: '#FFF',
-    fontSize: 40,
-    fontWeight: '900',
-  },
+  sosText: { color: '#FFF', fontSize: 32, fontWeight: '900' },
   statusHub: {
-    width: '100%',
-    backgroundColor: '#1E1E1E',
-    borderRadius: 15,
-    flexDirection: 'row',
-    padding: 20,
-    alignItems: 'center',
+    width: '100%', backgroundColor: '#1E1E1E', borderRadius: 15,
+    flexDirection: 'row', padding: 20, alignItems: 'center', marginBottom: 25
   },
-  nodeCounter: {
-    alignItems: 'center',
-    marginRight: 20,
+  nodeCounter: { alignItems: 'center', marginRight: 20 },
+  nodeValue: { color: '#FFF', fontSize: 32, fontWeight: '800' },
+  nodeLabel: { color: '#888', fontSize: 10, textTransform: 'uppercase' },
+  divider: { width: 1, height: '80%', backgroundColor: '#333', marginRight: 20 },
+  statusInfo: { flex: 1 },
+  onlineBadge: { flexDirection: 'row', alignItems: 'center', marginBottom: 5 },
+  dot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
+  onlineText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
+  statusDetail: { color: '#AAA', fontSize: 13 },
+  
+  voiceAgentContainer: {
+    width: '100%', backgroundColor: '#111', borderRadius: 15,
+    padding: 20, alignItems: 'center', borderWidth: 1, borderColor: '#333'
   },
-  nodeValue: {
-    color: '#FFF',
-    fontSize: 32,
-    fontWeight: '800',
+  voiceTitle: { color: '#FF5252', fontSize: 18, fontWeight: '800', marginBottom: 5 },
+  voiceSubtitle: { color: '#888', fontSize: 13, textAlign: 'center', marginBottom: 15 },
+  voiceButtonOutline: {
+    width: 90, height: 90, borderRadius: 45,
+    backgroundColor: 'rgba(255, 82, 82, 0.1)', justifyContent: 'center', alignItems: 'center',
   },
-  nodeLabel: {
-    color: '#888',
-    fontSize: 10,
-    textTransform: 'uppercase',
+  voiceButtonInner: {
+    width: 70, height: 70, borderRadius: 35,
+    justifyContent: 'center', alignItems: 'center', elevation: 10,
   },
-  divider: {
-    width: 1,
-    height: '80%',
-    backgroundColor: '#333',
-    marginRight: 20,
+  voiceStatusText: { color: '#AAA', fontSize: 14, marginTop: 5, textAlign: 'center' },
+  transcriptBox: {
+    width: '100%', marginTop: 20, padding: 15, backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 10, borderWidth: 1, borderColor: '#333'
   },
-  statusInfo: {
-    flex: 1,
-  },
-  onlineBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 5,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 8,
-  },
-  onlineText: {
-    color: '#FFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  statusDetail: {
-    color: '#AAA',
-    fontSize: 13,
-  },
-  instructionCard: {
-    marginTop: 25,
-    padding: 20,
-    backgroundColor: '#111',
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: '#333',
-  },
-  instructionTitle: {
-    color: '#C62828',
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  instructionBody: {
-    color: '#777',
-    fontSize: 14,
-    lineHeight: 20,
-  },
+  userText: { color: '#DDD', fontSize: 13, marginBottom: 8, fontStyle: 'italic' },
+  aiText: { color: '#FF5252', fontSize: 14, fontWeight: '600', marginBottom: 8 },
 });

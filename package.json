@@ -18,6 +18,7 @@
     "@runanywhere/core": "^0.18.1",
     "@runanywhere/llamacpp": "^0.18.1",
     "@runanywhere/onnx": "^0.18.1",
+    "onnxruntime-react-native": "^1.24.3",
     "react": "19.2.0",
     "react-native": "0.83.1",
     "react-native-blob-util": "^0.24.7",
