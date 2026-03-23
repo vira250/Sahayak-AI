@@ -27,6 +27,8 @@ import { useModelService } from '../services/ModelService';
 import { ChatMessage, ModelLoaderWidget } from '../components';
 import { ChatBackend } from '../services/ChatBackendBridge';
 import { playBase64Audio } from '../utils/AudioPlayer';
+import { AuditTimelineService } from '../services/AuditTimelineService';
+import { classifySymptomText } from '../services/SymptomClassifier';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -535,6 +537,39 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
     if (!text && !hasImage) return;
     if (isGenerating) return;
 
+    if (text) {
+      const classification = classifySymptomText(text);
+      if (classification.detected) {
+        void AuditTimelineService.logEvent({
+          type: 'symptom_entry',
+          severity: classification.emergency ? 'warning' : 'info',
+          source: 'chat',
+          summary: `Symptom-like message detected (${classification.condition || 'general'})`,
+          details: {
+            confidence: classification.confidence,
+            matchedSymptoms: classification.matchedSymptoms,
+            emergency: classification.emergency,
+            emergencyReason: classification.emergencyReason,
+            textPreview: text.slice(0, 180),
+          },
+        });
+      }
+
+      if (classification.emergency) {
+        void AuditTimelineService.logEvent({
+          type: 'emergency_warning_shown',
+          severity: 'critical',
+          source: 'chat',
+          summary: classification.emergencyReason || 'Potential emergency signs in chat input',
+          details: {
+            condition: classification.condition,
+            matchedSymptoms: classification.matchedSymptoms,
+            textPreview: text.slice(0, 180),
+          },
+        });
+      }
+    }
+
     // The text the user sees in the bubble
     const displayText = text || (hasImage ? 'Sent an image' : '');
 
@@ -656,6 +691,16 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Clear', style: 'destructive', onPress: async () => {
+          void AuditTimelineService.logEvent({
+            type: 'user_action_taken',
+            severity: 'info',
+            source: 'chat',
+            summary: 'User cleared current chat conversation',
+            details: {
+              messageCount: messages.length,
+              roomId: roomId || null,
+            },
+          });
           setMessages([]);
           await ChatBackend.clearSessionHistory();
           if (roomId) {
@@ -664,7 +709,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
         }
       }
     ])
-  }, [roomId]);
+  }, [messages.length, roomId]);
 
   // ── Early return after all hooks ────────────────────────────────────────────
   // Only require LLM for text chat; STT/TTS are optional (for voice features)

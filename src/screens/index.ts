@@ -6,7 +6,7 @@ export * from './ToolCallingScreen';
 export * from './SpeechToTextScreen';
 export * from './TextToSpeechScreen';
 export * from './VoicePipelineScreen';
-export * from './SmartNotesScreen';
+export * from './AuditTimelineScreen';
 export * from './SplashScreen';
 export * from './ModelDownloadScreen';
 export * from './SettingScreen';

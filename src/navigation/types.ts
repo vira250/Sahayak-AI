@@ -7,7 +7,7 @@ export type RootStackParamList = {
   SpeechToText: undefined;
   TextToSpeech: undefined;
   VoicePipeline: undefined;
-  SmartNotes: undefined;
+  AuditTimeline: undefined;
   Splash: undefined;
   ModelDownload: undefined;
   Settings: undefined;

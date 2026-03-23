@@ -15,6 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { AuditTimelineService } from '../services/AuditTimelineService';
 
 const { width } = Dimensions.get('window');
 
@@ -86,8 +87,30 @@ export const MeshSOSScreen: React.FC = () => {
 
   const handleSOS = () => {
     setStatus('📡 TRANSMITTING SOS TO MESH NETWORK...');
+
+    void AuditTimelineService.logEvent({
+      type: 'sos_triggered',
+      severity: 'critical',
+      source: 'sos',
+      summary: 'User triggered SOS mesh broadcast',
+      details: {
+        peersFound,
+        statusBeforeTrigger: status,
+      },
+    });
+
     setTimeout(() => {
       setStatus('SOS Relayed to nearest Search & Rescue relay.');
+      void AuditTimelineService.logEvent({
+        type: 'user_action_taken',
+        severity: 'warning',
+        source: 'sos',
+        summary: 'SOS relay status updated',
+        details: {
+          peersFound,
+          relayStatus: 'SOS Relayed to nearest Search & Rescue relay.',
+        },
+      });
     }, 3000);
   };
 

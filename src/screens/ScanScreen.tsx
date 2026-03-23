@@ -27,6 +27,8 @@ import { playBase64Audio } from '../utils/AudioPlayer';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import { BottomNav } from '../components';
+import { AuditTimelineService } from '../services/AuditTimelineService';
+import { classifySymptomText } from '../services/SymptomClassifier';
 
 const { width } = Dimensions.get('window');
 
@@ -219,6 +221,38 @@ export const ScanScreen: React.FC = () => {
         return;
       }
 
+      const classifierInput = `${additionalContext}\n${extractedText}`.trim();
+      const classification = classifySymptomText(classifierInput);
+      if (classification.detected) {
+        await AuditTimelineService.logEvent({
+          type: 'symptom_entry',
+          severity: classification.emergency ? 'warning' : 'info',
+          source: 'scan',
+          summary: `Symptom-like content detected from scan (${classification.condition || 'general'})`,
+          details: {
+            confidence: classification.confidence,
+            matchedSymptoms: classification.matchedSymptoms,
+            emergency: classification.emergency,
+            emergencyReason: classification.emergencyReason,
+            extractedTextLength: extractedText.length,
+            contextLength: additionalContext.length,
+          },
+        });
+      }
+
+      if (classification.emergency) {
+        await AuditTimelineService.logEvent({
+          type: 'emergency_warning_shown',
+          severity: 'critical',
+          source: 'scan',
+          summary: classification.emergencyReason || 'Potential emergency signs detected in scanned context',
+          details: {
+            condition: classification.condition,
+            matchedSymptoms: classification.matchedSymptoms,
+          },
+        });
+      }
+
       // Step 2: Check if LLM is loaded, reload if needed
       setStatusMessage('Preparing AI model...');
       try {
@@ -267,6 +301,17 @@ export const ScanScreen: React.FC = () => {
           setAnalysisResult(responseRef.current);
           setStatusMessage('');
         }
+
+        await AuditTimelineService.logEvent({
+          type: 'analysis_completed',
+          severity: 'info',
+          source: 'scan',
+          summary: 'Scan analysis completed successfully',
+          details: {
+            responseLength: responseRef.current.length,
+            usedStreaming: true,
+          },
+        });
       } catch (streamErr: any) {
         console.warn('generateStream failed, trying non-stream:', streamErr?.message || streamErr);
         // Fallback to non-streaming generate
@@ -277,6 +322,16 @@ export const ScanScreen: React.FC = () => {
           });
           if (result?.text) {
             setAnalysisResult(result.text);
+            await AuditTimelineService.logEvent({
+              type: 'analysis_completed',
+              severity: 'info',
+              source: 'scan',
+              summary: 'Scan analysis completed with fallback generation',
+              details: {
+                responseLength: result.text.length,
+                usedStreaming: false,
+              },
+            });
           } else {
             throw new Error('Empty response from generate');
           }
@@ -288,11 +343,30 @@ export const ScanScreen: React.FC = () => {
             '• Try restarting the app\n' +
             '• Close other apps to free memory',
           );
+          await AuditTimelineService.logEvent({
+            type: 'model_issue',
+            severity: 'warning',
+            source: 'scan',
+            summary: 'Scan analysis failed in both streaming and fallback modes',
+            details: {
+              streamError: streamErr?.message || String(streamErr),
+              generateError: genErr?.message || String(genErr),
+            },
+          });
         }
       }
     } catch (error: any) {
       console.error('Scan analysis error:', error);
       setAnalysisResult(`❌ Error: ${error?.message || 'Analysis failed'}\n\nPlease try again.`);
+      await AuditTimelineService.logEvent({
+        type: 'model_issue',
+        severity: 'warning',
+        source: 'scan',
+        summary: 'Scan analysis pipeline error',
+        details: {
+          error: error?.message || String(error),
+        },
+      });
     } finally {
       setIsAnalyzing(false);
       setStatusMessage('');

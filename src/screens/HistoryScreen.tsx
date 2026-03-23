@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   SafeAreaView,
   Platform,
-  Alert,
+  Modal,
   Image,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -17,6 +17,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/types';
 import { ChatBackend, ChatRoom } from '../services/ChatBackendBridge';
 import { BottomNav } from '../components';
+import { useToast } from '../services/ToastService';
 
 type HistoryScreenProps = {
   navigation: StackNavigationProp<RootStackParamList, 'History'>;
@@ -37,6 +38,8 @@ const timeAgo = (timestamp: number): string => {
 
 export const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
+  const [confirmState, setConfirmState] = useState<{ type: 'clear-all' | 'delete-room'; roomId?: string } | null>(null);
+  const { showToast } = useToast();
 
   useFocusEffect(
     useCallback(() => {
@@ -45,34 +48,36 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
   );
 
   const handleClearAll = () => {
-    if (rooms.length === 0) return;
-    Alert.alert('Clear History', 'Delete all chat history?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete All',
-        style: 'destructive',
-        onPress: async () => {
-          for (const room of rooms) {
-            await ChatBackend.deleteRoom(room.id);
-          }
-          setRooms([]);
-        },
-      },
-    ]);
+    if (rooms.length === 0) {
+      showToast('No chat history to clear', 'info', 'bottom');
+      return;
+    }
+    setConfirmState({ type: 'clear-all' });
   };
 
   const handleDeleteRoom = (roomId: string) => {
-    Alert.alert('Delete Chat', 'Delete this conversation?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          await ChatBackend.deleteRoom(roomId);
-          setRooms(prev => prev.filter(r => r.id !== roomId));
-        },
-      },
-    ]);
+    setConfirmState({ type: 'delete-room', roomId });
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmState) return;
+
+    if (confirmState.type === 'clear-all') {
+      for (const room of rooms) {
+        await ChatBackend.deleteRoom(room.id);
+      }
+      setRooms([]);
+      showToast('All chat history deleted', 'success', 'bottom');
+      setConfirmState(null);
+      return;
+    }
+
+    if (confirmState.roomId) {
+      await ChatBackend.deleteRoom(confirmState.roomId);
+      setRooms(prev => prev.filter(r => r.id !== confirmState.roomId));
+      showToast('Conversation deleted', 'success', 'bottom');
+    }
+    setConfirmState(null);
   };
 
   return (
@@ -153,6 +158,45 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
 
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      <Modal
+        visible={!!confirmState}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setConfirmState(null)}
+      >
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmCard}>
+            <View style={styles.confirmIconWrap}>
+              <MaterialCommunityIcons name="delete-alert-outline" size={18} color="#B42318" />
+            </View>
+            <Text style={styles.confirmTitle}>
+              {confirmState?.type === 'clear-all' ? 'Clear Entire History?' : 'Delete Conversation?'}
+            </Text>
+            <Text style={styles.confirmMessage}>
+              {confirmState?.type === 'clear-all'
+                ? 'This will remove all chat conversations from this device.'
+                : 'This conversation will be removed from your device history.'}
+            </Text>
+            <View style={styles.confirmActions}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={() => setConfirmState(null)}
+              >
+                <Text style={styles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.deleteBtn}
+                onPress={handleConfirmAction}
+              >
+                <Text style={styles.deleteText}>
+                  {confirmState?.type === 'clear-all' ? 'Delete All' : 'Delete'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <BottomNav activeTab="History" />
     </SafeAreaView>
@@ -293,5 +337,69 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 40,
     lineHeight: 20,
+  },
+  confirmOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  confirmCard: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 16,
+  },
+  confirmIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  confirmTitle: {
+    fontSize: 17,
+    color: '#0F172A',
+    fontWeight: '800',
+  },
+  confirmMessage: {
+    marginTop: 6,
+    color: '#475569',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  confirmActions: {
+    marginTop: 16,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+  },
+  cancelBtn: {
+    borderRadius: 10,
+    backgroundColor: '#E8EEF4',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  cancelText: {
+    color: '#1E293B',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  deleteBtn: {
+    borderRadius: 10,
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  deleteText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 13,
   },
 });

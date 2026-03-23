@@ -9,6 +9,7 @@ import { RunAnywhere, SDKEnvironment } from '@runanywhere/core';
 import { LlamaCPP, LlamaCppProvider, isNativeLlamaModuleAvailable } from '@runanywhere/llamacpp';
 import { ONNX, ONNXProvider, isNativeONNXModuleAvailable } from '@runanywhere/onnx';
 import { ModelServiceProvider, registerDefaultModels } from './services/ModelService';
+import { ToastProvider } from './services/ToastService';
 import { AppColors } from './theme';
 import {
   HomeScreen,
@@ -19,7 +20,7 @@ import {
   SpeechToTextScreen,
   TextToSpeechScreen,
   VoicePipelineScreen,
-  SmartNotesScreen,
+  AuditTimelineScreen,
   SplashScreen,
   ModelDownloadScreen,
   SettingsScreen,
@@ -67,9 +68,10 @@ const App: React.FC = () => {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ModelServiceProvider>
-        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-        <NavigationContainer>
-          <Stack.Navigator
+        <ToastProvider>
+          <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+          <NavigationContainer>
+            <Stack.Navigator
             initialRouteName="Splash"
             screenOptions={{
               headerShown: false,
@@ -154,9 +156,9 @@ const App: React.FC = () => {
               options={{ title: 'Voice Pipeline' }}
             />
             <Stack.Screen
-              name="SmartNotes"
-              component={SmartNotesScreen}
-              options={{ title: 'Smart Voice Notes' }}
+              name="AuditTimeline"
+              component={AuditTimelineScreen}
+              options={{ title: 'Audit Timeline' }}
             />
             <Stack.Screen
               name="Settings"
@@ -175,8 +177,9 @@ const App: React.FC = () => {
               component={MeshSOSScreen}
               options={{ title: 'Mesh SOS' }}
             />
-          </Stack.Navigator>
-        </NavigationContainer>
+            </Stack.Navigator>
+          </NavigationContainer>
+        </ToastProvider>
       </ModelServiceProvider>
     </GestureHandlerRootView>
   );

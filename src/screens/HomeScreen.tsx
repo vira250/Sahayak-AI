@@ -145,12 +145,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             onPress={() => navigation.navigate('Scan')}
           />
           <CapabilityCard
-            icon="note-text-outline"
-            title="Smart Notes"
-            subtitle="Record meetings"
+            icon="timeline-text-outline"
+            title="Audit Timeline"
+            subtitle="Clinical event log"
             colorPrimary="#F0F4F8"
             colorSecondary="#E2E8F0"
-            onPress={() => navigation.navigate('SmartNotes')}
+            onPress={() => navigation.navigate('AuditTimeline')}
           />
         </View>
 

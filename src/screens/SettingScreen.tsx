@@ -18,6 +18,7 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import LinearGradient from 'react-native-linear-gradient';
 import { AppColors } from '../theme/colors';
 import { calculateBMI, getBMICategory, UserProfile, loadUserProfile, saveUserProfile } from '../utils/UserProfileManager';
+import { useToast } from '../services/ToastService';
 
 const DEFAULT_PROFILE: UserProfile = {
     name: '',
@@ -30,6 +31,7 @@ const DEFAULT_PROFILE: UserProfile = {
 export const SettingsScreen: React.FC = () => {
     const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
     const [isSaving, setIsSaving] = useState(false);
+    const { showToast } = useToast();
 
     // Load profile on mount
     useEffect(() => {
@@ -44,24 +46,24 @@ export const SettingsScreen: React.FC = () => {
 
     const handleSave = async () => {
         if (!profile.name.trim()) {
-            Alert.alert('Error', 'Please enter your name');
+            showToast('Please enter your name', 'error', 'bottom');
             return;
         }
         if (!profile.age.trim()) {
-            Alert.alert('Error', 'Please enter your age');
+            showToast('Please enter your age', 'error', 'bottom');
             return;
         }
         if (!profile.weight.trim() || !profile.height.trim()) {
-            Alert.alert('Error', 'Please enter weight and height');
+            showToast('Please enter weight and height', 'error', 'bottom');
             return;
         }
 
         setIsSaving(true);
         try {
             await saveUserProfile(profile);
-            Alert.alert('Success', 'Profile saved successfully!');
+            showToast('Profile saved successfully', 'success', 'bottom');
         } catch (error) {
-            Alert.alert('Error', 'Failed to save profile');
+            showToast('Failed to save profile', 'error', 'bottom');
             console.error(error);
         } finally {
             setIsSaving(false);
@@ -81,7 +83,7 @@ export const SettingsScreen: React.FC = () => {
                 return;
             }
             if (response.errorCode) {
-                Alert.alert('Error', 'Failed to pick image');
+                showToast('Failed to pick image', 'error', 'bottom');
                 return;
             }
 
