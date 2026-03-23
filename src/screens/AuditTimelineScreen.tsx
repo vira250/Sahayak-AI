@@ -34,6 +34,26 @@ const severityColors = {
   critical: '#EF4444',
 };
 
+const severityScore: Record<AuditTimelineEvent['severity'], number> = {
+  info: 1,
+  warning: 2,
+  critical: 4,
+};
+
+const eventBonusScore: Partial<Record<AuditEventType, number>> = {
+  symptom_entry: 1,
+  emergency_warning_shown: 3,
+  sos_triggered: 4,
+  model_issue: 2,
+};
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+type RiskTrendPoint = {
+  label: string;
+  score: number;
+};
+
 export const AuditTimelineScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const { showToast } = useToast();
@@ -56,6 +76,50 @@ export const AuditTimelineScreen: React.FC = () => {
     if (selectedType === 'all') return events;
     return events.filter((event) => event.type === selectedType);
   }, [events, selectedType]);
+
+  const riskTrend = useMemo<RiskTrendPoint[]>(() => {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const dayBuckets = new Map<string, number>();
+
+    for (let i = 6; i >= 0; i -= 1) {
+      const dayDate = new Date(startOfToday - i * DAY_MS);
+      const key = dayDate.toDateString();
+      dayBuckets.set(key, 0);
+    }
+
+    for (const event of events) {
+      const dayStart = new Date(new Date(event.timestamp).toDateString()).getTime();
+      const daysFromToday = Math.floor((startOfToday - dayStart) / DAY_MS);
+      if (daysFromToday < 0 || daysFromToday > 6) continue;
+
+      const key = new Date(dayStart).toDateString();
+      const current = dayBuckets.get(key) ?? 0;
+      const nextScore = current + severityScore[event.severity] + (eventBonusScore[event.type] ?? 0);
+      dayBuckets.set(key, Math.min(nextScore, 10));
+    }
+
+    return Array.from(dayBuckets.entries()).map(([key, score]) => {
+      const date = new Date(key);
+      return {
+        label: date.toLocaleDateString(undefined, { weekday: 'short' }),
+        score,
+      };
+    });
+  }, [events]);
+
+  const maxTrendScore = useMemo(() => {
+    const max = Math.max(...riskTrend.map((point) => point.score), 1);
+    return max;
+  }, [riskTrend]);
+
+  const latestRiskLabel = useMemo(() => {
+    const latestScore = riskTrend[riskTrend.length - 1]?.score ?? 0;
+    if (latestScore >= 7) return 'High';
+    if (latestScore >= 4) return 'Moderate';
+    if (latestScore >= 1) return 'Low';
+    return 'No activity';
+  }, [riskTrend]);
 
   const handleClear = async () => {
     await AuditTimelineService.clearEvents();
@@ -117,6 +181,40 @@ export const AuditTimelineScreen: React.FC = () => {
             <MaterialCommunityIcons name="timeline-text-outline" size={30} color="#FFFFFF" />
           </View>
         </LinearGradient>
+      </View>
+
+      <View style={styles.trendWrap}>
+        <View style={styles.trendCard}>
+          <View style={styles.trendHeaderRow}>
+            <View>
+              <Text style={styles.trendTitle}>Risk Trend (Last 7 Days)</Text>
+              <Text style={styles.trendSubtitle}>Today: {latestRiskLabel}</Text>
+            </View>
+            <MaterialCommunityIcons name="chart-bar" size={18} color="#1B3A5C" />
+          </View>
+
+          <View style={styles.trendChartRow}>
+            {riskTrend.map((point) => {
+              const heightPct = Math.max(8, Math.round((point.score / maxTrendScore) * 100));
+              const barColor = point.score >= 7 ? '#EF4444' : point.score >= 4 ? '#F59E0B' : '#38BDF8';
+
+              return (
+                <View key={point.label} style={styles.trendBarItem}>
+                  <View style={styles.trendBarTrack}>
+                    <View
+                      style={[
+                        styles.trendBarFill,
+                        { height: `${heightPct}%`, backgroundColor: point.score === 0 ? '#CBD5E1' : barColor },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.trendScore}>{point.score}</Text>
+                  <Text style={styles.trendDay}>{point.label}</Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
       </View>
 
       <View style={styles.actionRow}>
@@ -305,6 +403,69 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  trendWrap: {
+    paddingHorizontal: 20,
+    marginBottom: 10,
+  },
+  trendCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 14,
+  },
+  trendHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  trendTitle: {
+    fontSize: 14,
+    color: '#0F172A',
+    fontWeight: '800',
+  },
+  trendSubtitle: {
+    marginTop: 2,
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  trendChartRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 6,
+  },
+  trendBarItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  trendBarTrack: {
+    width: '100%',
+    height: 84,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+  },
+  trendBarFill: {
+    width: '100%',
+    borderRadius: 10,
+    minHeight: 3,
+  },
+  trendScore: {
+    marginTop: 5,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  trendDay: {
+    marginTop: 2,
+    fontSize: 10,
+    color: '#64748B',
+    fontWeight: '600',
   },
   filterRow: {
     flexDirection: 'row',

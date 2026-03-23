@@ -4,7 +4,16 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import android.graphics.Bitmap
+import android.graphics.Color
+import android.graphics.pdf.PdfRenderer
+import android.net.Uri
+import android.os.ParcelFileDescriptor
 import com.facebook.react.bridge.*
+import com.google.android.gms.tasks.Tasks
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -342,6 +351,71 @@ class ChatBackendModule(reactContext: ReactApplicationContext) : ReactContextBas
     // =========================================================================
     // OCR Text Cleaning
     // =========================================================================
+
+    @ReactMethod
+    fun extractTextFromPdf(pdfUri: String, maxPages: Int, promise: Promise) {
+        Thread {
+            var renderer: PdfRenderer? = null
+            var fileDescriptor: ParcelFileDescriptor? = null
+
+            try {
+                val uri = Uri.parse(pdfUri)
+                fileDescriptor = reactApplicationContext.contentResolver.openFileDescriptor(uri, "r")
+                    ?: throw IllegalArgumentException("Unable to open PDF URI")
+
+                renderer = PdfRenderer(fileDescriptor)
+                if (renderer.pageCount <= 0) {
+                    promise.resolve("")
+                    return@Thread
+                }
+
+                val pageLimit = if (maxPages > 0) maxPages else 3
+                val pagesToProcess = minOf(pageLimit, renderer.pageCount)
+                val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                val extracted = StringBuilder()
+
+                for (pageIndex in 0 until pagesToProcess) {
+                    val page = renderer.openPage(pageIndex)
+                    val renderWidth = (page.width * 2).coerceAtLeast(page.width)
+                    val renderHeight = (page.height * 2).coerceAtLeast(page.height)
+                    val bitmap = Bitmap.createBitmap(renderWidth, renderHeight, Bitmap.Config.ARGB_8888)
+
+                    try {
+                        bitmap.eraseColor(Color.WHITE)
+                        page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                        val inputImage = InputImage.fromBitmap(bitmap, 0)
+                        val pageResult = Tasks.await(recognizer.process(inputImage))
+
+                        if (!pageResult.text.isNullOrBlank()) {
+                            if (extracted.isNotEmpty()) {
+                                extracted.append("\n\n")
+                            }
+                            extracted.append("[Page ${pageIndex + 1}]\n")
+                            extracted.append(pageResult.text)
+                        }
+                    } finally {
+                        bitmap.recycle()
+                        page.close()
+                    }
+                }
+
+                recognizer.close()
+                promise.resolve(extracted.toString())
+            } catch (e: Exception) {
+                promise.reject("PDF_OCR_ERROR", e.message, e)
+            } finally {
+                try {
+                    renderer?.close()
+                } catch (_: Exception) {
+                }
+
+                try {
+                    fileDescriptor?.close()
+                } catch (_: Exception) {
+                }
+            }
+        }.start()
+    }
 
     @ReactMethod
     fun cleanOCRText(rawText: String, promise: Promise) {

@@ -34,6 +34,9 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        ndk {
+            abiFilters "arm64-v8a", "x86_64"
+        }
     }
     signingConfigs {
         debug {
@@ -72,6 +75,7 @@ android {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
+    implementation("com.google.mlkit:text-recognition:16.0.1")
 
     def isHermesEnabled = project.hasProperty("hermesEnabled") ? project.hermesEnabled.toBoolean() : true
     if (isHermesEnabled) {

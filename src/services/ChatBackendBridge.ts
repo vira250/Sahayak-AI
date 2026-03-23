@@ -93,4 +93,8 @@ export const ChatBackend = {
   async cleanOCRText(rawText: string): Promise<string> {
     return ChatBackendModule.cleanOCRText(rawText);
   },
+
+  async extractTextFromPdf(pdfUri: string, maxPages = 3): Promise<string> {
+    return ChatBackendModule.extractTextFromPdf(pdfUri, maxPages);
+  },
 };

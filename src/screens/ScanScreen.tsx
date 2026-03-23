@@ -14,6 +14,7 @@ import {
   Alert,
   PermissionsAndroid,
   Platform,
+  NativeModules,
 } from 'react-native';
 import { launchCamera, launchImageLibrary, Asset } from 'react-native-image-picker';
 import { RunAnywhere } from '@runanywhere/core';
@@ -31,86 +32,54 @@ import { AuditTimelineService } from '../services/AuditTimelineService';
 import { classifySymptomText } from '../services/SymptomClassifier';
 
 const { width } = Dimensions.get('window');
+const MAX_OCR_CHARS = 8000;
 
-// The prompt that tells the VLM what to do with the image
-const VISION_PROMPT = `You are Dr. Sahayak, a medical first-aid assistant. Carefully examine this image and provide a detailed, structured analysis.
+const OCR_SUMMARY_PROMPT = `You are Dr. Sahayak, a medical assistant.
 
-STEP 1: Identify what the image shows (injury, medicine, document, or other).
-STEP 2: Provide specific guidance based on the category below.
+You will receive OCR text extracted from an image or PDF. Your task is text-only analysis.
+Do not claim to see the image. Use only OCR text and user context.
 
-═══ INJURIES & WOUNDS ═══
+Output format:
+• Section 1 - Key Summary (4-8 bullets)
+• Section 2 - Important Values/Findings (if any)
+• Section 3 - Actionable Next Steps
+• Section 4 - Red Flags / Emergency Signs
 
-If you see a CUT, LACERATION, or OPEN WOUND:
-• Severity: minor (shallow, <2cm) / moderate (deep, bleeding) / severe (deep, gaping, won't stop bleeding)
-• First aid: clean with running water, apply gentle pressure with clean cloth, apply antiseptic, cover with sterile bandage
-• Do NOT: use cotton directly on wound, apply turmeric/toothpaste, pull out embedded objects
-• Seek emergency help if: bleeding won't stop after 10 min, wound is deep/gaping, caused by rusty/dirty object, signs of infection (redness spreading, pus, fever)
-
-If you see a BURN:
-• Degree: 1st (red, no blisters) / 2nd (blisters, swelling, pain) / 3rd (white/charred, numb)
-• First aid: cool under running water for 10-20 min, cover loosely with clean cloth
-• Do NOT: apply ice directly, pop blisters, apply butter/oil/toothpaste, remove stuck clothing
-• Seek emergency help if: burn is larger than palm size, on face/hands/joints/genitals, is 3rd degree, victim is a child or elderly
-
-If you see SWELLING or INFLAMMATION:
-• Type: traumatic (from injury) / infectious (red, warm, spreading) / allergic (hives, facial swelling)
-• First aid: RICE method (Rest, Ice-20min on/off, Compress, Elevate), OTC pain relief
-• Seek emergency help if: swelling on throat/face causing breathing difficulty, rapidly spreading redness, accompanied by fever >101°F
-
-If you see a SKIN CONDITION (rash, bite, infection, boil):
-• Identify: insect bite, allergic rash, fungal infection, boil/abscess, eczema
-• First aid: wash area, apply calamine/anti-itch cream, cold compress, avoid scratching
-• Seek help if: spreading rapidly, pus/discharge, fever, near eyes, circular rash (possible Lyme)
-
-If you see a possible FRACTURE or SPRAIN:
-• Signs: deformity, severe swelling, bruising, inability to move
-• First aid: immobilize the area, do not try to realign, apply cold pack, elevate
-• Seek emergency help immediately for: open fractures, loss of feeling, deformity
-
-If you see an EYE INJURY:
-• First aid: do NOT rub, flush with clean water for chemical exposure, cover with clean cup/shield
-• Seek emergency help immediately for: embedded objects, chemical burns, blurred vision, bleeding
-
-═══ MEDICINE / MEDICATION ═══
-
-If this is a MEDICINE (tablet, syrup, packaging):
-• Name of medicine (read from label/packaging)
-• Primary use and what condition it treats
-• Typical dosage and when to take
-• Common side effects to watch for
-• Important warnings and drug interactions
-• ⚠️ Always consult your doctor before starting or stopping any medication
-
-═══ DOCUMENT / REPORT ═══
-
-If this is a MEDICAL REPORT, BILL, or DOCUMENT:
-• Summary of key findings or charges
-• Important values, dates, and names
-• Any abnormal results highlighted
-• Recommended next steps
-
-═══ OTHER ═══
-
-For anything else, describe what you see and provide useful context.
-
-IMPORTANT RULES:
-• Use bullet points (•) for all responses
-• Start with "🔍 Identified:" followed by what you see
-• Be specific — mention exact body part, severity, and color observations
-• Always end with: "⚠️ Disclaimer: This is AI-assisted first aid guidance only. Please consult a qualified doctor for proper diagnosis and treatment."
-• For emergencies, mention: "🚨 Call emergency services (112) immediately"`;
+Rules:
+• If OCR text is noisy or incomplete, say so clearly.
+• If medical info is present, be cautious and non-diagnostic.
+• End with: "⚠️ Disclaimer: This is AI-assisted guidance, not a medical diagnosis. Consult a qualified doctor."
+• Use concise bullet points only.`;
 
 
 export const ScanScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const modelService = useModelService();
   const [capturedImage, setCapturedImage] = useState<Asset | null>(null);
+  const [selectedPdf, setSelectedPdf] = useState<{ uri: string; name?: string; size?: number } | null>(null);
   const [additionalContext, setAdditionalContext] = useState('');
   const [analysisResult, setAnalysisResult] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [downloadProgress, setDownloadProgress] = useState(0);
   const responseRef = useRef('');
+
+  const isDocumentPickerAvailable = useCallback(() => {
+    if ((NativeModules as any)?.RNDocumentPicker) {
+      return true;
+    }
+
+    const turboProxy = (global as any)?.__turboModuleProxy;
+    if (typeof turboProxy === 'function') {
+      try {
+        return !!turboProxy('RNDocumentPicker');
+      } catch {
+        return false;
+      }
+    }
+
+    return false;
+  }, []);
 
   const requestCameraPermission = useCallback(async () => {
     if (Platform.OS === 'android') {
@@ -151,6 +120,7 @@ export const ScanScreen: React.FC = () => {
         }
         if (response.assets && response.assets[0]) {
           setCapturedImage(response.assets[0]);
+          setSelectedPdf(null);
           setAnalysisResult('');
           setStatusMessage('');
         }
@@ -174,6 +144,7 @@ export const ScanScreen: React.FC = () => {
         }
         if (response.assets && response.assets[0]) {
           setCapturedImage(response.assets[0]);
+          setSelectedPdf(null);
           setAnalysisResult('');
           setStatusMessage('');
         }
@@ -181,11 +152,51 @@ export const ScanScreen: React.FC = () => {
     );
   }, []);
 
+  const handlePdfPick = useCallback(async () => {
+    try {
+      if (!isDocumentPickerAvailable()) {
+        Alert.alert(
+          'PDF Picker Not Ready',
+          'PDF picker native module is not loaded yet. Please reinstall the app build and restart Metro.',
+        );
+        return;
+      }
+
+      const picker = require('@react-native-documents/picker');
+
+      const result = await picker.pick({
+        type: [picker.types.pdf],
+        mode: 'open',
+      });
+      const file = result[0];
+
+      setSelectedPdf({
+        uri: file.uri,
+        name: file.name || 'document.pdf',
+        size: file.size || undefined,
+      });
+      setCapturedImage(null);
+      setAnalysisResult('');
+      setStatusMessage('');
+    } catch (error: any) {
+      const picker = require('@react-native-documents/picker');
+      if (picker.isErrorWithCode(error) && error.code === picker.errorCodes.OPERATION_CANCELED) {
+        return;
+      }
+      Alert.alert('PDF Error', error?.message || 'Failed to pick PDF');
+    }
+  }, [isDocumentPickerAvailable]);
+
 
 
   const handleAnalyze = useCallback(async () => {
-    if (!capturedImage?.uri) {
-      Alert.alert('No Image', 'Please capture or select an image first.');
+    if (!capturedImage?.uri && !selectedPdf?.uri) {
+      Alert.alert('No File Selected', 'Please capture/select an image or upload a PDF first.');
+      return;
+    }
+
+    if (selectedPdf?.uri && Platform.OS !== 'android') {
+      Alert.alert('PDF OCR Not Available', 'PDF OCR is currently available on Android in this build.');
       return;
     }
 
@@ -196,12 +207,25 @@ export const ScanScreen: React.FC = () => {
     responseRef.current = '';
 
     try {
-      // Step 1: Extract text from the image using ML Kit OCR
-      setStatusMessage('Scanning image for text...');
+      // Step 1: Extract text via OCR from image or PDF
       let extractedText = '';
       try {
-        const ocrResult = await TextRecognition.recognize(capturedImage.uri);
-        extractedText = ocrResult?.text || '';
+        if (selectedPdf?.uri) {
+          setStatusMessage('Scanning PDF pages for text...');
+          extractedText = await ChatBackend.extractTextFromPdf(selectedPdf.uri, 3);
+        } else if (capturedImage?.uri) {
+          setStatusMessage('Scanning image for text...');
+          const ocrResult = await TextRecognition.recognize(capturedImage.uri);
+          extractedText = ocrResult?.text || '';
+        }
+
+        if (extractedText) {
+          extractedText = await ChatBackend.cleanOCRText(extractedText);
+          if (extractedText.length > MAX_OCR_CHARS) {
+            extractedText = extractedText.slice(0, MAX_OCR_CHARS);
+            setStatusMessage('OCR text is large, summarizing first section...');
+          }
+        }
         console.log('OCR extracted text length:', extractedText.length);
       } catch (ocrErr: any) {
         console.warn('OCR extraction failed (non-fatal):', ocrErr?.message || ocrErr);
@@ -210,11 +234,11 @@ export const ScanScreen: React.FC = () => {
 
       if (!extractedText && !additionalContext.trim()) {
         setAnalysisResult(
-          '⚠️ No text could be extracted from this image and no context was provided.\n\n' +
+          `⚠️ No text could be extracted from this ${selectedPdf ? 'PDF' : 'image'} and no context was provided.\n\n` +
           '• Try adding a description of what you see in the text box above\n' +
           '• For medicines: type the medicine name\n' +
           '• For injuries: describe the injury type, location, and severity\n' +
-          '• Make sure the image is clear and well-lit\n\n' +
+          `• Make sure the ${selectedPdf ? 'PDF is readable' : 'image is clear and well-lit'}\n\n` +
           'Then tap "Analyze Scan" again.',
         );
         setIsAnalyzing(false);
@@ -280,12 +304,14 @@ export const ScanScreen: React.FC = () => {
         console.warn('Model check/load failed:', modelErr?.message || modelErr);
       }
 
-      // Step 3: Build the prompt with extracted text and user context
-      let analysisPrompt = VISION_PROMPT + '\n\n';
-      if (extractedText) {
-        analysisPrompt += `📋 TEXT EXTRACTED FROM IMAGE:\n"""${extractedText}"""\n\n`;
+      // Step 3: Build strict OCR -> Qwen prompt
+      let analysisPrompt = OCR_SUMMARY_PROMPT + '\n\n';
+      analysisPrompt += `SOURCE TYPE: ${selectedPdf ? 'PDF' : 'IMAGE'}\n\n`;
+      analysisPrompt += `OCR TEXT:\n"""${extractedText || ''}"""\n\n`;
+      if (additionalContext.trim()) {
+        analysisPrompt += `USER CONTEXT:\n"""${additionalContext.trim()}"""\n\n`;
       }
-      analysisPrompt += 'Based on the information above, provide your analysis:';
+      analysisPrompt += 'Generate the final summary now.';
 
       // Step 4: Stream LLM response
       setStatusMessage('Analyzing...');
@@ -372,10 +398,11 @@ export const ScanScreen: React.FC = () => {
       setStatusMessage('');
       setDownloadProgress(0);
     }
-  }, [capturedImage, additionalContext]);
+  }, [capturedImage, selectedPdf, additionalContext]);
 
   const handleReset = useCallback(() => {
     setCapturedImage(null);
+    setSelectedPdf(null);
     setAnalysisResult('');
     setAdditionalContext('');
     setStatusMessage('');
@@ -449,9 +476,15 @@ export const ScanScreen: React.FC = () => {
                 <Text style={styles.retakeText}>Tap to retake</Text>
               </View>
             </TouchableOpacity>
+          ) : selectedPdf?.uri ? (
+            <TouchableOpacity onPress={handleReset} activeOpacity={0.9} style={styles.pdfPreviewContainer}>
+              <MaterialCommunityIcons name="file-pdf-box" size={62} color="#B91C1C" />
+              <Text style={styles.pdfTitle} numberOfLines={2}>{selectedPdf.name || 'document.pdf'}</Text>
+              <Text style={styles.pdfSubtitle}>Tap to clear and pick another file</Text>
+            </TouchableOpacity>
           ) : (
             <View style={styles.placeholderContainer}>
-              <Text style={styles.placeholderLabel}>Point at medicine or object</Text>
+              <Text style={styles.placeholderLabel}>Capture image or upload a medical PDF</Text>
               <View style={styles.viewfinderFrame}>
                 {/* Scan corners */}
                 <View style={[styles.cornerTL, styles.corner]} />
@@ -479,17 +512,36 @@ export const ScanScreen: React.FC = () => {
                 <MaterialCommunityIcons name="image-multiple" size={26} color="#1B3A5C" />
               </View>
             </TouchableOpacity>
+
+            <TouchableOpacity style={styles.captureBtn} onPress={handlePdfPick}>
+              <View style={[styles.captureBtnInner, styles.pdfBtnInner]}>
+                <MaterialCommunityIcons name="file-pdf-box" size={26} color="#B91C1C" />
+              </View>
+            </TouchableOpacity>
           </View>
+        </View>
+
+        <View style={styles.contextCard}>
+          <Text style={styles.contextLabel}>Optional context for better summary</Text>
+          <TextInput
+            style={styles.contextInput}
+            placeholder="Example: This is my blood test report from yesterday"
+            placeholderTextColor="#94A3B8"
+            multiline
+            value={additionalContext}
+            onChangeText={setAdditionalContext}
+            textAlignVertical="top"
+          />
         </View>
 
         {/* Analyze Scan Button */}
         <TouchableOpacity
-          style={[styles.analyzeBtn, (!capturedImage || isAnalyzing) && styles.analyzeBtnDisabled]}
+          style={[styles.analyzeBtn, ((!capturedImage && !selectedPdf) || isAnalyzing) && styles.analyzeBtnDisabled]}
           onPress={handleAnalyze}
-          disabled={!capturedImage || isAnalyzing}
+          disabled={(!capturedImage && !selectedPdf) || isAnalyzing}
         >
           <LinearGradient
-            colors={(!capturedImage || isAnalyzing) ? ['#94A3B8', '#64748B'] : ['#1B3A5C', '#102A43']}
+            colors={((!capturedImage && !selectedPdf) || isAnalyzing) ? ['#94A3B8', '#64748B'] : ['#1B3A5C', '#102A43']}
             style={styles.btnGradient}
           >
             {isAnalyzing ? (
@@ -632,6 +684,31 @@ const styles = StyleSheet.create({
     height: '100%',
     resizeMode: 'cover',
   },
+  pdfPreviewContainer: {
+    width: '100%',
+    height: width * 0.65,
+    borderRadius: 20,
+    backgroundColor: '#FEF2F2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    paddingHorizontal: 20,
+  },
+  pdfTitle: {
+    marginTop: 12,
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#7F1D1D',
+    textAlign: 'center',
+  },
+  pdfSubtitle: {
+    marginTop: 6,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#991B1B',
+    textAlign: 'center',
+  },
   placeholderContainer: {
     width: '100%',
     alignItems: 'center',
@@ -735,6 +812,37 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
     borderColor: '#F1F5F9',
+  },
+  pdfBtnInner: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 2,
+    borderColor: '#FECACA',
+  },
+  contextCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 14,
+    marginBottom: 16,
+  },
+  contextLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#475569',
+    marginBottom: 8,
+  },
+  contextInput: {
+    minHeight: 84,
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#0F172A',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   analyzeBtn: {
     borderRadius: 20,
