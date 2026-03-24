@@ -11,3 +11,4 @@ export * from './SplashScreen';
 export * from './ModelDownloadScreen';
 export * from './SettingScreen';
 export * from './MeshSOSScreen';
+export * from './MedicineScheduleScreen';

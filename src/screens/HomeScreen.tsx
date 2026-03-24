@@ -157,11 +157,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         <View style={styles.gridRow}>
           <CapabilityCard
             icon="shield-lock-outline"
-            title="Secure Vault"
-            subtitle="Private storage"
+            title="Medicine Schedule"
+            subtitle="Reminders & logs"
             colorPrimary="#F0F4F8"
             colorSecondary="#E2E8F0"
-            onPress={() => { }}
+            onPress={() => navigation.navigate('MedicineSchedule')}
           />
           <CapabilityCard
             icon="alert-octagon-outline"

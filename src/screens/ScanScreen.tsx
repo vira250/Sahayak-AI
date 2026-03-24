@@ -33,6 +33,24 @@ import { classifySymptomText } from '../services/SymptomClassifier';
 
 const { width } = Dimensions.get('window');
 const MAX_OCR_CHARS = 8000;
+const GENERIC_ERROR_MESSAGE = 'Something went wrong. Please try again.';
+
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const withRetry = async <T>(task: () => Promise<T>, retries = 1): Promise<T> => {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await task();
+    } catch (error) {
+      lastError = error;
+      if (attempt < retries) {
+        await wait(300);
+      }
+    }
+  }
+  throw lastError;
+};
 
 const OCR_SUMMARY_PROMPT = `You are Dr. Sahayak, a medical assistant.
 
@@ -100,7 +118,7 @@ export const ScanScreen: React.FC = () => {
   const handleCameraCapture = useCallback(async () => {
     const hasPermission = await requestCameraPermission();
     if (!hasPermission) {
-      Alert.alert('Permission Denied', 'Camera permission is required to scan items.');
+      Alert.alert('Permission Denied', GENERIC_ERROR_MESSAGE);
       return;
     }
 
@@ -115,7 +133,7 @@ export const ScanScreen: React.FC = () => {
       (response) => {
         if (response.didCancel) return;
         if (response.errorCode) {
-          Alert.alert('Camera Error', response.errorMessage || 'Failed to capture photo');
+          Alert.alert('Camera Error', GENERIC_ERROR_MESSAGE);
           return;
         }
         if (response.assets && response.assets[0]) {
@@ -139,7 +157,7 @@ export const ScanScreen: React.FC = () => {
       (response) => {
         if (response.didCancel) return;
         if (response.errorCode) {
-          Alert.alert('Gallery Error', response.errorMessage || 'Failed to pick photo');
+          Alert.alert('Gallery Error', GENERIC_ERROR_MESSAGE);
           return;
         }
         if (response.assets && response.assets[0]) {
@@ -157,7 +175,7 @@ export const ScanScreen: React.FC = () => {
       if (!isDocumentPickerAvailable()) {
         Alert.alert(
           'PDF Picker Not Ready',
-          'PDF picker native module is not loaded yet. Please reinstall the app build and restart Metro.',
+          GENERIC_ERROR_MESSAGE,
         );
         return;
       }
@@ -183,7 +201,7 @@ export const ScanScreen: React.FC = () => {
       if (picker.isErrorWithCode(error) && error.code === picker.errorCodes.OPERATION_CANCELED) {
         return;
       }
-      Alert.alert('PDF Error', error?.message || 'Failed to pick PDF');
+      Alert.alert('PDF Error', GENERIC_ERROR_MESSAGE);
     }
   }, [isDocumentPickerAvailable]);
 
@@ -342,10 +360,13 @@ export const ScanScreen: React.FC = () => {
         console.warn('generateStream failed, trying non-stream:', streamErr?.message || streamErr);
         // Fallback to non-streaming generate
         try {
-          const result = await RunAnywhere.generate(analysisPrompt, {
-            maxTokens: 1000,
-            temperature: 0.7,
-          });
+          const result = await withRetry(
+            () => RunAnywhere.generate(analysisPrompt, {
+              maxTokens: 1000,
+              temperature: 0.7,
+            }),
+            1,
+          );
           if (result?.text) {
             setAnalysisResult(result.text);
             await AuditTimelineService.logEvent({
@@ -364,9 +385,9 @@ export const ScanScreen: React.FC = () => {
         } catch (genErr: any) {
           console.error('Non-streaming generate also failed:', genErr?.message || genErr);
           setAnalysisResult(
-            `❌ Analysis failed: ${genErr?.message || 'Unknown error'}\n\n` +
+            'Analysis failed. Please try again.\n\n' +
             '• Make sure the AI model is loaded\n' +
-            '• Try restarting the app\n' +
+            '• Try again in a few seconds\n' +
             '• Close other apps to free memory',
           );
           await AuditTimelineService.logEvent({
@@ -383,7 +404,7 @@ export const ScanScreen: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Scan analysis error:', error);
-      setAnalysisResult(`❌ Error: ${error?.message || 'Analysis failed'}\n\nPlease try again.`);
+      setAnalysisResult('Analysis failed. Please try again.');
       await AuditTimelineService.logEvent({
         type: 'model_issue',
         severity: 'warning',
@@ -429,7 +450,7 @@ export const ScanScreen: React.FC = () => {
       }
     } catch (error) {
       console.error('TTS Error:', error);
-      Alert.alert('Playback Failed', 'Could not synthesize or play audio.');
+      Alert.alert('Playback Failed', GENERIC_ERROR_MESSAGE);
       setStatusMessage('');
     }
   };

@@ -40,11 +40,22 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [confirmState, setConfirmState] = useState<{ type: 'clear-all' | 'delete-room'; roomId?: string } | null>(null);
   const { showToast } = useToast();
+  const genericHistoryError = 'Something went wrong. Please try again.';
 
   useFocusEffect(
     useCallback(() => {
-      ChatBackend.getAllRooms().then(setRooms).catch(console.error);
-    }, [])
+      const loadRooms = async () => {
+        try {
+          const allRooms = await ChatBackend.getAllRooms();
+          setRooms(allRooms);
+        } catch (error) {
+          console.error('Failed to load history rooms:', error);
+          showToast(genericHistoryError, 'error', 'bottom');
+        }
+      };
+
+      loadRooms();
+    }, [showToast])
   );
 
   const handleClearAll = () => {
@@ -61,23 +72,27 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
 
   const handleConfirmAction = async () => {
     if (!confirmState) return;
-
-    if (confirmState.type === 'clear-all') {
-      for (const room of rooms) {
-        await ChatBackend.deleteRoom(room.id);
+    try {
+      if (confirmState.type === 'clear-all') {
+        for (const room of rooms) {
+          await ChatBackend.deleteRoom(room.id);
+        }
+        setRooms([]);
+        showToast('All chat history deleted', 'success', 'bottom');
+        setConfirmState(null);
+        return;
       }
-      setRooms([]);
-      showToast('All chat history deleted', 'success', 'bottom');
-      setConfirmState(null);
-      return;
-    }
 
-    if (confirmState.roomId) {
-      await ChatBackend.deleteRoom(confirmState.roomId);
-      setRooms(prev => prev.filter(r => r.id !== confirmState.roomId));
-      showToast('Conversation deleted', 'success', 'bottom');
+      if (confirmState.roomId) {
+        await ChatBackend.deleteRoom(confirmState.roomId);
+        setRooms(prev => prev.filter(r => r.id !== confirmState.roomId));
+        showToast('Conversation deleted', 'success', 'bottom');
+      }
+      setConfirmState(null);
+    } catch (error) {
+      console.error('Failed to update history:', error);
+      showToast(genericHistoryError, 'error', 'bottom');
     }
-    setConfirmState(null);
   };
 
   return (

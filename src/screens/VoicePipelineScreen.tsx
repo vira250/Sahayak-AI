@@ -42,6 +42,25 @@ const MODEL_IDS = {
   tts: 'vits-piper-en_US-lessac-medium',
 };
 
+const GENERIC_VOICE_ERROR = 'Voice unavailable. Please try again.';
+
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const withRetry = async <T>(task: () => Promise<T>, retries = 1): Promise<T> => {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await task();
+    } catch (error) {
+      lastError = error;
+      if (attempt < retries) {
+        await wait(250);
+      }
+    }
+  }
+  throw lastError;
+};
+
 export const VoicePipelineScreen: React.FC = () => {
   const modelService = useModelService();
   const [isActive, setIsActive] = useState(false);
@@ -91,7 +110,7 @@ export const VoicePipelineScreen: React.FC = () => {
         break;
         
       case 'error':
-        setStatus(`Error: ${event.error || 'Unknown error'}`);
+        setStatus(GENERIC_VOICE_ERROR);
         setAudioLevel(0);
         console.error('Voice session error:', event.error);
         break;
@@ -205,15 +224,18 @@ export const VoicePipelineScreen: React.FC = () => {
 
     try {
       // Per docs: Use startVoiceSession with VoiceSessionConfig and callback
-      sessionRef.current = await RunAnywhere.startVoiceSession({
-        onEvent: handleVoiceEvent,
-        continuousMode: true,
-        autoPlayTTS: true,
-        silenceDuration: 1.5,
-      });
+      sessionRef.current = await withRetry(
+        () => RunAnywhere.startVoiceSession({
+          onEvent: handleVoiceEvent,
+          continuousMode: true,
+          autoPlayTTS: true,
+          silenceDuration: 1.5,
+        }),
+        1,
+      );
     } catch (error) {
       console.error('Voice agent error:', error);
-      setStatus(`Error: ${error}`);
+      setStatus(GENERIC_VOICE_ERROR);
       setIsActive(false);
     }
   };

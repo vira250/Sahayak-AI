@@ -7,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   NativeModules,
+  Alert,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import LinearGradient from 'react-native-linear-gradient';
@@ -18,6 +19,24 @@ import { ModelLoaderWidget } from '../components';
 
 // Native Audio Module for better audio session management
 const { NativeAudioModule } = NativeModules;
+const GENERIC_ERROR_MESSAGE = 'Something went wrong. Please try again.';
+
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const withRetry = async <T>(task: () => Promise<T>, retries = 1): Promise<T> => {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await task();
+    } catch (error) {
+      lastError = error;
+      if (attempt < retries) {
+        await wait(250);
+      }
+    }
+  }
+  throw lastError;
+};
 
 const SAMPLE_TEXTS = [
   'Hello! Welcome to RunAnywhere. Experience the power of on-device AI.',
@@ -54,12 +73,15 @@ export const TextToSpeechScreen: React.FC = () => {
       // Per docs: https://docs.runanywhere.ai/react-native/tts/synthesize
       // result.audio contains base64-encoded float32 PCM
       // Using same config as sample app for consistent voice output
-      const result = await RunAnywhere.synthesize(text, { 
-        voice: 'default',
-        rate: speechRate,
-        pitch: 1.0,
-        volume: 1.0,
-      });
+      const result = await withRetry(
+        () => RunAnywhere.synthesize(text, {
+          voice: 'default',
+          rate: speechRate,
+          pitch: 1.0,
+          volume: 1.0,
+        }),
+        1,
+      );
 
       console.log(`[TTS] Synthesized: duration=${result.duration}s, sampleRate=${result.sampleRate}Hz, numSamples=${result.numSamples}`);
 
@@ -78,7 +100,7 @@ export const TextToSpeechScreen: React.FC = () => {
       // Play using native audio module
       if (NativeAudioModule) {
         try {
-          const playResult = await NativeAudioModule.playAudio(tempPath);
+          const playResult = await withRetry(() => NativeAudioModule.playAudio(tempPath), 1);
           console.log(`[TTS] Playback started, duration: ${playResult.duration}s`);
           
           // Wait for playback to complete (approximate based on duration)
@@ -91,15 +113,18 @@ export const TextToSpeechScreen: React.FC = () => {
         } catch (playError) {
           console.error('[TTS] Native playback error:', playError);
           setIsPlaying(false);
+          Alert.alert('Playback Failed', GENERIC_ERROR_MESSAGE);
         }
       } else {
         console.error('[TTS] NativeAudioModule not available');
         setIsPlaying(false);
+        Alert.alert('Playback Failed', GENERIC_ERROR_MESSAGE);
       }
     } catch (error) {
       console.error('[TTS] Error:', error);
       setIsSynthesizing(false);
       setIsPlaying(false);
+      Alert.alert('Playback Failed', GENERIC_ERROR_MESSAGE);
     }
   };
 

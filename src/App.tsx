@@ -3,13 +3,16 @@ import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator, TransitionPresets, CardStyleInterpolators } from '@react-navigation/stack';
 import { StatusBar } from 'react-native';
+import notifee from '@notifee/react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 // Note: react-native-screens is shimmed in index.js for iOS New Architecture compatibility
 import { RunAnywhere, SDKEnvironment } from '@runanywhere/core';
 import { LlamaCPP, LlamaCppProvider, isNativeLlamaModuleAvailable } from '@runanywhere/llamacpp';
 import { ONNX, ONNXProvider, isNativeONNXModuleAvailable } from '@runanywhere/onnx';
 import { ModelServiceProvider, registerDefaultModels } from './services/ModelService';
+import { handleMedicineNotificationEvent, rescheduleMedicineNotifications } from './services/MedicineScheduleService';
 import { ToastProvider } from './services/ToastService';
+import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { AppColors } from './theme';
 import {
   HomeScreen,
@@ -25,6 +28,7 @@ import {
   ModelDownloadScreen,
   SettingsScreen,
   MeshSOSScreen,
+  MedicineScheduleScreen,
 } from './screens';
 import { RootStackParamList } from './navigation/types';
 
@@ -65,122 +69,138 @@ const App: React.FC = () => {
     initializeSDK();
   }, []);
 
+  useEffect(() => {
+    const unsubscribe = notifee.onForegroundEvent(handleMedicineNotificationEvent);
+    rescheduleMedicineNotifications().catch(error => {
+      console.error('Failed to refresh medicine reminders on app launch:', error);
+    });
+
+    return unsubscribe;
+  }, []);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ModelServiceProvider>
-        <ToastProvider>
-          <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-          <NavigationContainer>
-            <Stack.Navigator
-            initialRouteName="Splash"
-            screenOptions={{
-              headerShown: false,
-              cardStyle: {
-                backgroundColor: '#FFFFFF',
-              },
-              // Default: iOS-like slide for push screens
-              ...TransitionPresets.SlideFromRightIOS,
-            }}
-          >
-            <Stack.Screen
-              name="Splash"
-              component={SplashScreen}
-              options={{ ...TransitionPresets.FadeFromBottomAndroid }}
-            />
-            <Stack.Screen
-              name="ModelDownload"
-              component={ModelDownloadScreen}
-              options={{ ...TransitionPresets.FadeFromBottomAndroid }}
-            />
-            {/* Tab-like screens: instant fade for bottom nav switching */}
-            <Stack.Screen
-              name="Home"
-              component={HomeScreen}
-              options={{
+      <AppErrorBoundary>
+        <ModelServiceProvider>
+          <ToastProvider>
+            <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+            <NavigationContainer>
+              <Stack.Navigator
+              initialRouteName="Splash"
+              screenOptions={{
                 headerShown: false,
-                cardStyleInterpolator: CardStyleInterpolators.forNoAnimation,
-                transitionSpec: {
-                  open: { animation: 'timing', config: { duration: 0 } },
-                  close: { animation: 'timing', config: { duration: 0 } },
+                cardStyle: {
+                  backgroundColor: '#FFFFFF',
                 },
+                // Default: iOS-like slide for push screens
+                ...TransitionPresets.SlideFromRightIOS,
               }}
-            />
-            <Stack.Screen
-              name="History"
-              component={HistoryScreen}
-              options={{
-                headerShown: false,
-                cardStyleInterpolator: CardStyleInterpolators.forNoAnimation,
-                transitionSpec: {
-                  open: { animation: 'timing', config: { duration: 0 } },
-                  close: { animation: 'timing', config: { duration: 0 } },
-                },
-              }}
-            />
-            {/* Push screens: slide animation */}
-            <Stack.Screen
-              name="Chat"
-              component={ChatScreen}
-              options={{ title: 'Chat' }}
-            />
-            <Stack.Screen
-              name="Scan"
-              component={ScanScreen}
-              options={{
-                headerShown: false,
-                cardStyleInterpolator: CardStyleInterpolators.forNoAnimation,
-                transitionSpec: {
-                  open: { animation: 'timing', config: { duration: 0 } },
-                  close: { animation: 'timing', config: { duration: 0 } },
-                },
-              }}
-            />
-            <Stack.Screen
-              name="ToolCalling"
-              component={ToolCallingScreen}
-              options={{ title: 'Tool Calling' }}
-            />
-            <Stack.Screen
-              name="SpeechToText"
-              component={SpeechToTextScreen}
-              options={{ title: 'Speech to Text' }}
-            />
-            <Stack.Screen
-              name="TextToSpeech"
-              component={TextToSpeechScreen}
-              options={{ title: 'Text to Speech' }}
-            />
-            <Stack.Screen
-              name="VoicePipeline"
-              component={VoicePipelineScreen}
-              options={{ title: 'Voice Pipeline' }}
-            />
-            <Stack.Screen
-              name="AuditTimeline"
-              component={AuditTimelineScreen}
-              options={{ title: 'Audit Timeline' }}
-            />
-            <Stack.Screen
-              name="Settings"
-              component={SettingsScreen}
-              options={{
-                headerShown: false,
-                cardStyleInterpolator: CardStyleInterpolators.forNoAnimation,
-                transitionSpec: {
-                  open: { animation: 'timing', config: { duration: 0 } },
-                  close: { animation: 'timing', config: { duration: 0 } },
-                },
-              }}
-            />
-            <Stack.Screen
-              name="MeshSOS"
-              component={MeshSOSScreen}
-              options={{ title: 'Mesh SOS' }}
-            />
-            </Stack.Navigator>
-          </NavigationContainer>
-        </ToastProvider>
-      </ModelServiceProvider>
+            >
+              <Stack.Screen
+                name="Splash"
+                component={SplashScreen}
+                options={{ ...TransitionPresets.FadeFromBottomAndroid }}
+              />
+              <Stack.Screen
+                name="ModelDownload"
+                component={ModelDownloadScreen}
+                options={{ ...TransitionPresets.FadeFromBottomAndroid }}
+              />
+              {/* Tab-like screens: instant fade for bottom nav switching */}
+              <Stack.Screen
+                name="Home"
+                component={HomeScreen}
+                options={{
+                  headerShown: false,
+                  cardStyleInterpolator: CardStyleInterpolators.forNoAnimation,
+                  transitionSpec: {
+                    open: { animation: 'timing', config: { duration: 0 } },
+                    close: { animation: 'timing', config: { duration: 0 } },
+                  },
+                }}
+              />
+              <Stack.Screen
+                name="History"
+                component={HistoryScreen}
+                options={{
+                  headerShown: false,
+                  cardStyleInterpolator: CardStyleInterpolators.forNoAnimation,
+                  transitionSpec: {
+                    open: { animation: 'timing', config: { duration: 0 } },
+                    close: { animation: 'timing', config: { duration: 0 } },
+                  },
+                }}
+              />
+              {/* Push screens: slide animation */}
+              <Stack.Screen
+                name="Chat"
+                component={ChatScreen}
+                options={{ title: 'Chat' }}
+              />
+              <Stack.Screen
+                name="Scan"
+                component={ScanScreen}
+                options={{
+                  headerShown: false,
+                  cardStyleInterpolator: CardStyleInterpolators.forNoAnimation,
+                  transitionSpec: {
+                    open: { animation: 'timing', config: { duration: 0 } },
+                    close: { animation: 'timing', config: { duration: 0 } },
+                  },
+                }}
+              />
+              <Stack.Screen
+                name="ToolCalling"
+                component={ToolCallingScreen}
+                options={{ title: 'Tool Calling' }}
+              />
+              <Stack.Screen
+                name="SpeechToText"
+                component={SpeechToTextScreen}
+                options={{ title: 'Speech to Text' }}
+              />
+              <Stack.Screen
+                name="TextToSpeech"
+                component={TextToSpeechScreen}
+                options={{ title: 'Text to Speech' }}
+              />
+              <Stack.Screen
+                name="VoicePipeline"
+                component={VoicePipelineScreen}
+                options={{ title: 'Voice Pipeline' }}
+              />
+              <Stack.Screen
+                name="AuditTimeline"
+                component={AuditTimelineScreen}
+                options={{ title: 'Audit Timeline' }}
+              />
+              <Stack.Screen
+                name="Settings"
+                component={SettingsScreen}
+                options={{
+                  headerShown: false,
+                  cardStyleInterpolator: CardStyleInterpolators.forNoAnimation,
+                  transitionSpec: {
+                    open: { animation: 'timing', config: { duration: 0 } },
+                    close: { animation: 'timing', config: { duration: 0 } },
+                  },
+                }}
+              />
+              <Stack.Screen
+                name="MeshSOS"
+                component={MeshSOSScreen}
+                options={{ title: 'Mesh SOS' }}
+              />
+              <Stack.Screen
+                name="MedicineSchedule"
+                component={MedicineScheduleScreen}
+                options={{ title: 'Medicine Schedule' }}
+              />
+              </Stack.Navigator>
+            </NavigationContainer>
+          </ToastProvider>
+        </ModelServiceProvider>
+      </AppErrorBoundary>
     </GestureHandlerRootView>
   );
 };

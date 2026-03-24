@@ -19,6 +19,24 @@ import { ModelLoaderWidget, AudioVisualizer } from '../components';
 
 // Native Audio Module - records in WAV format (16kHz mono) optimal for Whisper STT
 const { NativeAudioModule } = NativeModules;
+const GENERIC_ERROR_MESSAGE = 'Something went wrong. Please try again.';
+
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const withRetry = async <T>(task: () => Promise<T>, retries = 1): Promise<T> => {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await task();
+    } catch (error) {
+      lastError = error;
+      if (attempt < retries) {
+        await wait(250);
+      }
+    }
+  }
+  throw lastError;
+};
 
 export const SpeechToTextScreen: React.FC = () => {
   const modelService = useModelService();
@@ -49,7 +67,7 @@ export const SpeechToTextScreen: React.FC = () => {
       // Check if native module is available
       if (!NativeAudioModule) {
         console.error('[STT] NativeAudioModule not available');
-        Alert.alert('Error', 'Native audio module not available. Please rebuild the app.');
+        Alert.alert('Error', GENERIC_ERROR_MESSAGE);
         return;
       }
 
@@ -94,7 +112,7 @@ export const SpeechToTextScreen: React.FC = () => {
       console.warn('[STT] Recording started at:', result.path);
     } catch (error) {
       console.error('[STT] Recording error:', error);
-      Alert.alert('Recording Error', `Failed to start recording: ${error}`);
+      Alert.alert('Recording Error', GENERIC_ERROR_MESSAGE);
     }
   };
 
@@ -136,10 +154,13 @@ export const SpeechToTextScreen: React.FC = () => {
 
       // Transcribe using base64 audio data directly from native module
       console.warn('[STT] Starting transcription...');
-      const transcribeResult = await RunAnywhere.transcribe(audioBase64, {
-        sampleRate: 16000,
-        language: 'en',
-      });
+      const transcribeResult = await withRetry(
+        () => RunAnywhere.transcribe(audioBase64, {
+          sampleRate: 16000,
+          language: 'en',
+        }),
+        1,
+      );
 
       console.warn('[STT] Transcription result:', transcribeResult);
 
@@ -154,9 +175,8 @@ export const SpeechToTextScreen: React.FC = () => {
       setIsTranscribing(false);
     } catch (error) {
       console.error('[STT] Transcription error:', error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      setTranscription(`Error: ${errorMessage}`);
-      Alert.alert('Transcription Error', errorMessage);
+      setTranscription(GENERIC_ERROR_MESSAGE);
+      Alert.alert('Transcription Error', GENERIC_ERROR_MESSAGE);
       setIsTranscribing(false);
     }
   };

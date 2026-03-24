@@ -12,4 +12,5 @@ export type RootStackParamList = {
   ModelDownload: undefined;
   Settings: undefined;
   MeshSOS: undefined;
+  MedicineSchedule: undefined;
 };

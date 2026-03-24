@@ -63,6 +63,7 @@ type ExtendedChatMessage = ChatMessage & {
 };
 
 type ChatScreenProps = StackScreenProps<RootStackParamList, 'Chat'>;
+const GENERIC_ERROR_MESSAGE = 'Something went wrong. Please try again.';
 
 // ─── Typing Dots ──────────────────────────────────────────────────────────────
 const TypingDots: React.FC = () => {
@@ -357,13 +358,18 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
   useEffect(() => {
     const loadMessages = async () => {
       if (roomId) {
-        const history = await ChatBackend.getRoomHistory(roomId);
-        const formatted: ExtendedChatMessage[] = history.map((m) => ({
-          text: m.text,
-          isUser: m.isUser,
-          timestamp: new Date(m.timestamp || Date.now()),
-        }));
-        setMessages(formatted);
+        try {
+          const history = await ChatBackend.getRoomHistory(roomId);
+          const formatted: ExtendedChatMessage[] = history.map((m) => ({
+            text: m.text,
+            isUser: m.isUser,
+            timestamp: new Date(m.timestamp || Date.now()),
+          }));
+          setMessages(formatted);
+        } catch (error) {
+          console.error('Failed to load room history:', error);
+          setMessages([]);
+        }
       }
     };
     loadMessages();
@@ -394,7 +400,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
         setVoiceStatus('Assistant responded');
         break;
       case 'error':
-        setVoiceStatus(`Voice Error: ${event.error || 'Unknown'}`);
+        setVoiceStatus('Voice unavailable. Please try again.');
         break;
       case 'stopped':
         setVoiceStatus('Stopped');
@@ -417,7 +423,8 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
         silenceDuration: 1.0,
       });
     } catch (error) {
-      setVoiceStatus(`Voice session error: ${error}`);
+      console.error('Voice session start failed:', error);
+      setVoiceStatus('Voice unavailable. Please try again.');
       setIsVoiceActive(false);
     }
   }, [isVoiceActive, handleVoiceEvent]);
@@ -476,7 +483,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
   const handlePickResult = useCallback((response: ImagePickerResponse) => {
     if (response.didCancel) return;
     if (response.errorMessage) {
-      Alert.alert('Error', response.errorMessage);
+      Alert.alert('Error', GENERIC_ERROR_MESSAGE);
       return;
     }
     const uri = response.assets?.[0]?.uri;
@@ -512,6 +519,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
       }
     } catch (error) {
       console.error('TTS error:', error);
+      Alert.alert('Error', GENERIC_ERROR_MESSAGE);
     }
   };
 
@@ -652,11 +660,11 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
       scrollToBottom(150);
       scrollToBottom(500);
     } catch (error) {
-      const errText = `Error: ${error}`;
+      console.error('Chat send failed:', error);
       setCurrentResponse('');
       setIsGenerating(false);
       setMessages(prev => [...prev, {
-        text: errText,
+        text: GENERIC_ERROR_MESSAGE,
         isUser: false,
         timestamp: new Date(),
         isError: true,

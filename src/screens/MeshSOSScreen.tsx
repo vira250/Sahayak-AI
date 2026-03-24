@@ -44,6 +44,25 @@ RULES:
 3. Do not use markdown or complex formatting as this will be read aloud via TTS.
 4. Keep calm and professional. Ask diagnostic questions if needed, one at a time.`;
 
+const GENERIC_VOICE_ERROR = 'Voice unavailable. Please try again.';
+
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const withRetry = async <T>(task: () => Promise<T>, retries = 1): Promise<T> => {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await task();
+    } catch (error) {
+      lastError = error;
+      if (attempt < retries) {
+        await wait(250);
+      }
+    }
+  }
+  throw lastError;
+};
+
 export const MeshSOSScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const modelService = useModelService();
@@ -191,7 +210,7 @@ export const MeshSOSScreen: React.FC = () => {
         setAudioLevel(0.8);
         break;
       case 'error':
-        setVoiceStatus(`Error: ${event.error}`);
+        setVoiceStatus(GENERIC_VOICE_ERROR);
         setAudioLevel(0);
         break;
       case 'stopped':
@@ -215,13 +234,16 @@ export const MeshSOSScreen: React.FC = () => {
     setTranscripts([]);
 
     try {
-      sessionRef.current = await RunAnywhere.startVoiceSession({
-        onEvent: handleVoiceEvent,
-        continuousMode: true,
-        autoPlayTTS: true,
-        silenceDuration: 1.5,
-        systemPrompt: EMERGENCY_SYS_PROMPT,
-      });
+      sessionRef.current = await withRetry(
+        () => RunAnywhere.startVoiceSession({
+          onEvent: handleVoiceEvent,
+          continuousMode: true,
+          autoPlayTTS: true,
+          silenceDuration: 1.5,
+          systemPrompt: EMERGENCY_SYS_PROMPT,
+        }),
+        1,
+      );
       void AuditTimelineService.logEvent({
         type: 'emergency_warning_shown',
         severity: 'critical',
@@ -230,7 +252,7 @@ export const MeshSOSScreen: React.FC = () => {
       });
     } catch (error) {
       console.error('Voice agent error:', error);
-      setVoiceStatus(`Error starting AI`);
+      setVoiceStatus(GENERIC_VOICE_ERROR);
       setIsVoiceActive(false);
     }
   };

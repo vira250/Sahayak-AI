@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import { RunAnywhere, ModelCategory } from '@runanywhere/core';
 import { LlamaCPP } from '@runanywhere/llamacpp';
 import { ONNX, ModelArtifactType } from '@runanywhere/onnx';
+const RETRY_DELAY_MS = 300;
 
 // Model IDs - matching sample app model registry
 const MODEL_IDS = {
@@ -58,6 +59,24 @@ export const useModelService = () => {
 interface ModelServiceProviderProps {
   children: React.ReactNode;
 }
+
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const withRetry = async <T>(label: string, task: () => Promise<T>, retries = 1): Promise<T> => {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await task();
+    } catch (error) {
+      lastError = error;
+      if (attempt < retries) {
+        await wait(RETRY_DELAY_MS);
+      }
+    }
+  }
+  console.error(`ModelService failure: ${label}`, lastError);
+  throw lastError;
+};
 
 export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ children }) => {
   // Download state
@@ -185,9 +204,9 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
         setIsSTTDownloading(true);
         setSTTDownloadProgress(0);
 
-        modelPath = await RunAnywhere.downloadModel(MODEL_IDS.stt, (progress) => {
+        modelPath = await withRetry('download STT model', () => RunAnywhere.downloadModel(MODEL_IDS.stt, (progress) => {
           setSTTDownloadProgress(progress.progress * 100);
-        });
+        }));
 
         setIsSTTDownloading(false);
       } else {
@@ -196,7 +215,7 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
 
       if (modelPath) {
         setIsSTTLoading(true);
-        await RunAnywhere.loadSTTModel(modelPath, 'whisper');
+        await withRetry('load STT model', () => RunAnywhere.loadSTTModel(modelPath!, 'whisper'));
         setIsSTTLoaded(true);
         setIsSTTLoading(false);
       } else {
@@ -221,9 +240,9 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
         setIsTTSDownloading(true);
         setTTSDownloadProgress(0);
 
-        modelPath = await RunAnywhere.downloadModel(MODEL_IDS.tts, (progress) => {
+        modelPath = await withRetry('download TTS model', () => RunAnywhere.downloadModel(MODEL_IDS.tts, (progress) => {
           setTTSDownloadProgress(progress.progress * 100);
-        });
+        }));
 
         setIsTTSDownloading(false);
       } else {
@@ -232,7 +251,7 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
 
       if (modelPath) {
         setIsTTSLoading(true);
-        await RunAnywhere.loadTTSModel(modelPath, 'piper');
+        await withRetry('load TTS model', () => RunAnywhere.loadTTSModel(modelPath!, 'piper'));
         setIsTTSLoaded(true);
         setIsTTSLoading(false);
       } else {
