@@ -29,6 +29,7 @@ import { ChatBackend } from '../services/ChatBackendBridge';
 import { playBase64Audio } from '../utils/AudioPlayer';
 import { AuditTimelineService } from '../services/AuditTimelineService';
 import { classifySymptomText } from '../services/SymptomClassifier';
+import { HEALTHCARE_SYSTEM_PROMPT } from '../utils/HealthCarePrompts';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -364,6 +365,8 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
             text: m.text,
             isUser: m.isUser,
             timestamp: new Date(m.timestamp || Date.now()),
+            imageUri: m.imageUri || undefined,
+            imageContext: m.imageContext || undefined,
           }));
           setMessages(formatted);
         } catch (error) {
@@ -604,7 +607,13 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
 
     // Save user message to Kotlin backend
     if (currentRoomId) {
-      ChatBackend.saveMessage(currentRoomId, displayText, true).catch(console.error);
+      ChatBackend.saveMessage(
+        currentRoomId,
+        displayText,
+        true,
+        stagedImageUri ?? undefined,
+        stagedImageContext || undefined,
+      ).catch(console.error);
     }
 
     const currentImageContext = stagedImageContext;
@@ -620,11 +629,16 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
       // Ask Kotlin backend to build the correct prompt (handles pipeline selection)
       const config = await ChatBackend.buildPrompt(text, currentImageContext);
 
+      const isQwenActive = (modelService.activeLLMModelId || '').toLowerCase().includes('qwen');
+      const effectiveSystemPrompt = isQwenActive
+        ? `${HEALTHCARE_SYSTEM_PROMPT}\n\n${config.systemPrompt}`.trim()
+        : config.systemPrompt;
+
       // Run LLM generation — plain text prompt, SDK handles chat template natively
       const streamResult = await RunAnywhere.generateStream(config.prompt, {
         maxTokens: config.maxTokens,
         temperature: config.temperature,
-        systemPrompt: config.systemPrompt,
+        systemPrompt: effectiveSystemPrompt,
       });
       streamCancelRef.current = streamResult.cancel;
       responseRef.current = '';

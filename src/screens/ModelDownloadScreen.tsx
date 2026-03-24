@@ -13,44 +13,6 @@ import { useNavigation, CommonActions } from '@react-navigation/native';
 import { useModelService } from '../services/ModelService';
 import { AppColors } from '../theme';
 
-const ProgressItem: React.FC<{
-  label: string;
-  progress: number;
-  isDownloading: boolean;
-  isLoading: boolean;
-  isLoaded: boolean;
-}> = ({ label, progress, isDownloading, isLoading, isLoaded }) => {
-  return (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.cardLabel}>{label}</Text>
-        <View style={styles.statusContainer}>
-          {isLoaded ? (
-            <MaterialCommunityIcons name="check-circle" size={22} color={AppColors.success} />
-          ) : isDownloading ? (
-            <Text style={styles.cardStatus}>{Math.round(progress)}%</Text>
-          ) : isLoading ? (
-            <ActivityIndicator size="small" color="#1B3A5C" />
-          ) : (
-            <ActivityIndicator size="small" color={AppColors.textMuted} />
-          )}
-        </View>
-      </View>
-      <View style={styles.progressBarBg}>
-        <View
-          style={[
-            styles.progressBarFill,
-            {
-              width: `${isLoaded ? 100 : progress}%`,
-              backgroundColor: isLoaded ? AppColors.success : '#1B3A5C',
-            },
-          ]}
-        />
-      </View>
-    </View>
-  );
-};
-
 export const ModelDownloadScreen: React.FC = () => {
   const navigation = useNavigation();
   const modelService = useModelService();
@@ -82,6 +44,52 @@ export const ModelDownloadScreen: React.FC = () => {
     modelService.isSTTLoaded &&
     modelService.isTTSLoaded;// set only after both img + imgProj finish
 
+  const getSingleProgress = (isLoaded: boolean, isDownloading: boolean, isLoading: boolean, progress: number) => {
+    if (isLoaded) return 100;
+    if (isDownloading) return Math.max(0, Math.min(100, progress));
+    if (isLoading) return 99;
+    return 0;
+  };
+
+  const llmProgress = getSingleProgress(
+    modelService.isLLMLoaded,
+    modelService.isLLMDownloading,
+    modelService.isLLMLoading,
+    modelService.llmDownloadProgress,
+  );
+  const sttProgress = getSingleProgress(
+    modelService.isSTTLoaded,
+    modelService.isSTTDownloading,
+    modelService.isSTTLoading,
+    modelService.sttDownloadProgress,
+  );
+  const ttsProgress = getSingleProgress(
+    modelService.isTTSLoaded,
+    modelService.isTTSDownloading,
+    modelService.isTTSLoading,
+    modelService.ttsDownloadProgress,
+  );
+
+  const totalProgress = Math.round((llmProgress + sttProgress + ttsProgress) / 3);
+  const isAnyDownloading = modelService.isLLMDownloading || modelService.isSTTDownloading || modelService.isTTSDownloading;
+  const isAnyLoading = modelService.isLLMLoading || modelService.isSTTLoading || modelService.isTTSLoading;
+  const isAnyWorking = isDownloadingAll || modelService.isLLMLoading || modelService.isSTTLoading || modelService.isTTSLoading;
+  const allDownloaded = llmProgress >= 100 && sttProgress >= 100 && ttsProgress >= 100;
+  const progressTitle = isAnyDownloading
+    ? 'Models Downloading'
+    : allReady
+      ? 'Models Loaded'
+      : (allDownloaded || isAnyLoading)
+        ? 'Models Downloaded'
+        : 'Models Downloading';
+  const progressSubtext = isAnyDownloading
+    ? 'Downloading models...'
+    : allReady
+      ? 'All models are loaded and ready.'
+      : (allDownloaded || isAnyLoading)
+        ? 'Models downloaded. Loading models...'
+        : 'Ready to start download.';
+
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -96,28 +104,20 @@ export const ModelDownloadScreen: React.FC = () => {
         </Text>
 
         <View style={styles.cardContainer}>
-          <ProgressItem
-            label="Large Language Model (Chat)"
-            progress={modelService.llmDownloadProgress}
-            isDownloading={modelService.isLLMDownloading}
-            isLoading={modelService.isLLMLoading}
-            isLoaded={modelService.isLLMLoaded}
-          />
-          <ProgressItem
-            label="Speech to Text (Listen)"
-            progress={modelService.sttDownloadProgress}
-            isDownloading={modelService.isSTTDownloading}
-            isLoading={modelService.isSTTLoading}
-            isLoaded={modelService.isSTTLoaded}
-          />
-          <ProgressItem
-            label="Text to Speech (Speak)"
-            progress={modelService.ttsDownloadProgress}
-            isDownloading={modelService.isTTSDownloading}
-            isLoading={modelService.isTTSLoading}
-            isLoaded={modelService.isTTSLoaded}
-          />
+          <View style={styles.aggregateCard}>
+            <View style={styles.aggregateHeader}>
+              <Text style={styles.aggregateTitle}>{progressTitle}</Text>
+              <Text style={styles.aggregatePercent}>{totalProgress}%</Text>
+            </View>
 
+            <View style={styles.progressBarBg}>
+              <View style={[styles.progressBarFill, { width: `${totalProgress}%` }]} />
+            </View>
+
+            <Text style={styles.aggregateSubtext}>
+              {progressSubtext}
+            </Text>
+          </View>
         </View>
 
         <View style={styles.actionContainer}>
@@ -194,34 +194,33 @@ const styles = StyleSheet.create({
     width: '100%',
     marginBottom: 40,
   },
-  card: {
+  aggregateCard: {
     backgroundColor: '#F0F4F8',
     borderRadius: 16,
     padding: 20,
-    marginBottom: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  cardHeader: {
+  aggregateHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
-  statusContainer: {
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cardLabel: {
+  aggregateTitle: {
     color: '#1E293B',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
-  cardStatus: {
+  aggregatePercent: {
+    color: '#1B3A5C',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  aggregateSubtext: {
+    marginTop: 10,
     color: '#64748B',
-    fontSize: 14,
+    fontSize: 13,
   },
   progressBarBg: {
     height: 8,
@@ -232,6 +231,7 @@ const styles = StyleSheet.create({
   progressBarFill: {
     height: '100%',
     borderRadius: 4,
+    backgroundColor: '#1B3A5C',
   },
   actionContainer: {
     width: '100%',

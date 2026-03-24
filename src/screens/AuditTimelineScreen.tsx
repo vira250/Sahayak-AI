@@ -8,6 +8,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -59,6 +60,7 @@ export const AuditTimelineScreen: React.FC = () => {
   const { showToast } = useToast();
   const [events, setEvents] = useState<AuditTimelineEvent[]>([]);
   const [selectedType, setSelectedType] = useState<'all' | AuditEventType>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const load = useCallback(async () => {
@@ -73,9 +75,17 @@ export const AuditTimelineScreen: React.FC = () => {
   );
 
   const filteredEvents = useMemo(() => {
-    if (selectedType === 'all') return events;
-    return events.filter((event) => event.type === selectedType);
-  }, [events, selectedType]);
+    const query = searchQuery.trim().toLowerCase();
+
+    return events.filter((event) => {
+      const typeMatch = selectedType === 'all' || event.type === selectedType;
+      if (!typeMatch) return false;
+      if (!query) return true;
+
+      const haystack = `${typeLabels[event.type]} ${event.summary} ${event.source}`.toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [events, searchQuery, selectedType]);
 
   const riskTrend = useMemo<RiskTrendPoint[]>(() => {
     const now = new Date();
@@ -217,11 +227,23 @@ export const AuditTimelineScreen: React.FC = () => {
         </View>
       </View>
 
-      <View style={styles.actionRow}>
-        <TouchableOpacity onPress={() => setShowClearConfirm(true)} style={styles.clearButton}>
-          <MaterialCommunityIcons name="delete-outline" size={14} color="#DC2626" />
-          <Text style={styles.clearText}>Clear Audit History</Text>
-        </TouchableOpacity>
+      <View style={styles.searchWrap}>
+        <MaterialCommunityIcons name="magnify" size={18} color="#64748B" style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search audits"
+          placeholderTextColor="#94A3B8"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="search"
+        />
+        {searchQuery.length > 0 ? (
+          <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.searchClearBtn}>
+            <MaterialCommunityIcons name="close-circle" size={18} color="#94A3B8" />
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       <View style={styles.filterRow}>
@@ -254,6 +276,15 @@ export const AuditTimelineScreen: React.FC = () => {
           showsVerticalScrollIndicator={false}
         />
       )}
+
+      <TouchableOpacity
+        style={[styles.clearFab, events.length === 0 && styles.clearFabDisabled]}
+        onPress={() => setShowClearConfirm(true)}
+        activeOpacity={0.9}
+        disabled={events.length === 0}
+      >
+        <MaterialCommunityIcons name="delete-outline" size={22} color="#FFFFFF" />
+      </TouchableOpacity>
 
       <Modal
         visible={showClearConfirm}
@@ -334,41 +365,33 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 1,
   },
-  actionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    paddingHorizontal: 20,
+  searchWrap: {
+    marginHorizontal: 20,
     marginBottom: 10,
-    gap: 8,
+    position: 'relative',
   },
-  saveButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 11,
-    paddingVertical: 7,
-    borderRadius: 999,
-    backgroundColor: '#E8EEF4',
+  searchIcon: {
+    position: 'absolute',
+    left: 12,
+    top: 12,
+    zIndex: 1,
   },
-  saveText: {
-    color: '#0F2544',
-    fontWeight: '700',
-    fontSize: 12,
-    marginLeft: 5,
+  searchInput: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingLeft: 36,
+    paddingRight: 36,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#1E293B',
   },
-  clearButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 11,
-    paddingVertical: 7,
-    borderRadius: 999,
-    backgroundColor: '#FEE2E2',
-  },
-  clearText: {
-    color: '#DC2626',
-    fontWeight: '700',
-    fontSize: 12,
-    marginLeft: 6,
+  searchClearBtn: {
+    position: 'absolute',
+    right: 10,
+    top: 9,
+    padding: 4,
   },
   heroWrap: {
     paddingHorizontal: 20,
@@ -444,7 +467,7 @@ const styles = StyleSheet.create({
   },
   trendBarTrack: {
     width: '100%',
-    height: 84,
+    height: 62,
     borderRadius: 10,
     backgroundColor: '#F1F5F9',
     justifyContent: 'flex-end',
@@ -492,7 +515,28 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 20,
-    paddingBottom: 30,
+    paddingBottom: 100,
+  },
+  clearFab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 22,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#DC2626',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#7F1D1D',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  clearFabDisabled: {
+    backgroundColor: '#94A3B8',
+    shadowOpacity: 0,
+    elevation: 0,
   },
   eventCard: {
     backgroundColor: '#FFFFFF',

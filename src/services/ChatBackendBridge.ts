@@ -24,6 +24,8 @@ export interface ChatMessage {
   text: string;
   isUser: boolean;
   timestamp: number;
+  imageUri?: string;
+  imageContext?: string;
 }
 
 export interface PromptConfig {
@@ -88,14 +90,34 @@ export const ChatBackend = {
     return parseJsonArray<ChatMessage[]>(json, []);
   },
 
-  async saveMessage(roomId: string, text: string, isUser: boolean): Promise<void> {
+  async saveMessage(
+    roomId: string,
+    text: string,
+    isUser: boolean,
+    imageUri?: string,
+    imageContext?: string,
+  ): Promise<void> {
     ensureModule();
-    await withRetry('saveMessage', () => ChatBackendModule.saveMessage(roomId, text, isUser));
+    await withRetry('saveMessage', () => ChatBackendModule.saveMessage(
+      roomId,
+      text,
+      isUser,
+      imageUri ?? '',
+      imageContext ?? '',
+    ));
   },
 
   async deleteRoom(roomId: string): Promise<void> {
     ensureModule();
     await withRetry('deleteRoom', () => ChatBackendModule.deleteRoom(roomId));
+  },
+
+  async renameRoom(roomId: string, title: string): Promise<void> {
+    ensureModule();
+    if (typeof ChatBackendModule.renameRoom !== 'function') {
+      throw new Error('Chat backend rename operation unavailable');
+    }
+    await withRetry('renameRoom', () => ChatBackendModule.renameRoom(roomId, title));
   },
 
   // ── Pipeline Prompt Builder ────────────────────────────────────────────────

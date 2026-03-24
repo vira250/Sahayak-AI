@@ -71,7 +71,6 @@ const CapabilityCard: React.FC<{
 );
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
-
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
@@ -100,7 +99,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       >
         {/* Greeting Section */}
         <View style={styles.greetingContainer}>
-          <Text style={styles.greetingTitle}>Namaste,</Text>
+          <Text style={styles.greetingTitle}>Hello,</Text>
         </View>
 
         {/* Quick Chat Input Launcher */}

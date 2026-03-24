@@ -32,6 +32,7 @@ interface ModelServiceState {
   isTTSLoaded: boolean;
 
   isVoiceAgentReady: boolean;
+  activeLLMModelId: string | null;
 
   // Actions
   downloadAndLoadLLM: () => Promise<void>;
@@ -98,6 +99,7 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
   const [isSTTLoaded, setIsSTTLoaded] = useState(false);
   const [isTTSLoaded, setIsTTSLoaded] = useState(false);
   const [hasCompletedSetup, setHasCompletedSetup] = useState(false);
+  const [activeLLMModelId, setActiveLLMModelId] = useState<string | null>(null);
 
   const isVoiceAgentReady = isLLMLoaded && isSTTLoaded && isTTSLoaded;
 
@@ -143,6 +145,7 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
       await RunAnywhere.loadModel(modelPath);
       console.log(`Successfully loaded LLM model: ${modelId}`);
       setIsLLMLoaded(true);
+      setActiveLLMModelId(modelId);
       setIsLLMLoading(false);
       return true;
     } catch (loadError: any) {
@@ -165,6 +168,7 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
       await RunAnywhere.loadModel(modelPath);
       console.log(`Successfully loaded LLM model on retry: ${modelId}`);
       setIsLLMLoaded(true);
+      setActiveLLMModelId(modelId);
       setIsLLMLoading(false);
       return true;
     }
@@ -298,6 +302,7 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
       setIsLLMLoaded(false);
       setIsSTTLoaded(false);
       setIsTTSLoaded(false);
+      setActiveLLMModelId(null);
     } catch (error) {
       console.error('Error unloading models:', error);
     }
@@ -322,6 +327,7 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
     isSTTLoaded,
     isTTSLoaded,
     isVoiceAgentReady,
+    activeLLMModelId,
     isSetupReady,
     hasCompletedSetup,
     downloadAndLoadLLM,

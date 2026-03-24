@@ -25,7 +25,7 @@ class ChatDatabaseHelper(context: Context) :
 
     companion object {
         const val DATABASE_NAME = "sahayak_chat.db"
-        const val DATABASE_VERSION = 1
+        const val DATABASE_VERSION = 2
 
         // Rooms table
         const val TABLE_ROOMS = "rooms"
@@ -42,6 +42,8 @@ class ChatDatabaseHelper(context: Context) :
         const val COL_MSG_TEXT = "text"
         const val COL_MSG_IS_USER = "is_user"
         const val COL_MSG_TIMESTAMP = "timestamp"
+        const val COL_MSG_IMAGE_URI = "image_uri"
+        const val COL_MSG_IMAGE_CONTEXT = "image_context"
     }
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -62,6 +64,8 @@ class ChatDatabaseHelper(context: Context) :
                 $COL_MSG_TEXT TEXT NOT NULL,
                 $COL_MSG_IS_USER INTEGER NOT NULL DEFAULT 0,
                 $COL_MSG_TIMESTAMP INTEGER NOT NULL,
+                $COL_MSG_IMAGE_URI TEXT DEFAULT '',
+                $COL_MSG_IMAGE_CONTEXT TEXT DEFAULT '',
                 FOREIGN KEY ($COL_MSG_ROOM_ID) REFERENCES $TABLE_ROOMS($COL_ROOM_ID) ON DELETE CASCADE
             )
         """)
@@ -70,9 +74,18 @@ class ChatDatabaseHelper(context: Context) :
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_MESSAGES")
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_ROOMS")
-        onCreate(db)
+        if (oldVersion < 2) {
+            try {
+                db.execSQL("ALTER TABLE $TABLE_MESSAGES ADD COLUMN $COL_MSG_IMAGE_URI TEXT DEFAULT ''")
+            } catch (_: Exception) {
+                // Column already exists.
+            }
+            try {
+                db.execSQL("ALTER TABLE $TABLE_MESSAGES ADD COLUMN $COL_MSG_IMAGE_CONTEXT TEXT DEFAULT ''")
+            } catch (_: Exception) {
+                // Column already exists.
+            }
+        }
     }
 
     override fun onConfigure(db: SQLiteDatabase) {
@@ -180,6 +193,8 @@ class ChatBackendModule(reactContext: ReactApplicationContext) : ReactContextBas
                     put("text", cursor.getString(cursor.getColumnIndexOrThrow(ChatDatabaseHelper.COL_MSG_TEXT)))
                     put("isUser", cursor.getInt(cursor.getColumnIndexOrThrow(ChatDatabaseHelper.COL_MSG_IS_USER)) == 1)
                     put("timestamp", cursor.getLong(cursor.getColumnIndexOrThrow(ChatDatabaseHelper.COL_MSG_TIMESTAMP)))
+                    put("imageUri", cursor.getString(cursor.getColumnIndexOrThrow(ChatDatabaseHelper.COL_MSG_IMAGE_URI)))
+                    put("imageContext", cursor.getString(cursor.getColumnIndexOrThrow(ChatDatabaseHelper.COL_MSG_IMAGE_CONTEXT)))
                 }
                 messages.put(msg)
             }
@@ -192,7 +207,14 @@ class ChatBackendModule(reactContext: ReactApplicationContext) : ReactContextBas
     }
 
     @ReactMethod
-    fun saveMessage(roomId: String, text: String, isUser: Boolean, promise: Promise) {
+    fun saveMessage(
+        roomId: String,
+        text: String,
+        isUser: Boolean,
+        imageUri: String?,
+        imageContext: String?,
+        promise: Promise
+    ) {
         try {
             val db = dbHelper.writableDatabase
             val now = System.currentTimeMillis()
@@ -203,6 +225,8 @@ class ChatBackendModule(reactContext: ReactApplicationContext) : ReactContextBas
                 put(ChatDatabaseHelper.COL_MSG_TEXT, text)
                 put(ChatDatabaseHelper.COL_MSG_IS_USER, if (isUser) 1 else 0)
                 put(ChatDatabaseHelper.COL_MSG_TIMESTAMP, now)
+                put(ChatDatabaseHelper.COL_MSG_IMAGE_URI, imageUri ?: "")
+                put(ChatDatabaseHelper.COL_MSG_IMAGE_CONTEXT, imageContext ?: "")
             }
             db.insert(ChatDatabaseHelper.TABLE_MESSAGES, null, values)
 
@@ -230,6 +254,38 @@ class ChatBackendModule(reactContext: ReactApplicationContext) : ReactContextBas
             promise.resolve(true)
         } catch (e: Exception) {
             promise.reject("DELETE_ROOM_ERROR", e.message, e)
+        }
+    }
+
+    @ReactMethod
+    fun renameRoom(roomId: String, title: String, promise: Promise) {
+        try {
+            val nextTitle = title.trim()
+            if (nextTitle.isBlank()) {
+                promise.reject("RENAME_ROOM_ERROR", "Title cannot be empty")
+                return
+            }
+
+            val db = dbHelper.writableDatabase
+            val updateValues = ContentValues().apply {
+                put(ChatDatabaseHelper.COL_ROOM_TITLE, nextTitle)
+                put(ChatDatabaseHelper.COL_ROOM_UPDATED, System.currentTimeMillis())
+            }
+
+            val rows = db.update(
+                ChatDatabaseHelper.TABLE_ROOMS,
+                updateValues,
+                "${ChatDatabaseHelper.COL_ROOM_ID} = ?",
+                arrayOf(roomId)
+            )
+
+            if (rows > 0) {
+                promise.resolve(true)
+            } else {
+                promise.reject("RENAME_ROOM_ERROR", "Room not found")
+            }
+        } catch (e: Exception) {
+            promise.reject("RENAME_ROOM_ERROR", e.message, e)
         }
     }
 
