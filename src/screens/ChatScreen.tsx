@@ -767,14 +767,19 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
               roomId: roomId || null,
             },
           });
-          setMessages([]);
-          await ChatBackend.clearSessionHistory();
-          if (roomId) {
-            await ChatBackend.deleteRoom(roomId);
+          try {
+            setMessages([]);
+            await ChatBackend.clearSessionHistory();
+            if (roomId) {
+              await ChatBackend.deleteRoom(roomId);
+            }
+          } catch (clearError) {
+            console.error('Failed to clear chat:', clearError);
+            Alert.alert('Error', GENERIC_ERROR_MESSAGE);
           }
         }
       }
-    ])
+    ]);
   }, [messages.length, roomId]);
 
   // ── Early return after all hooks ────────────────────────────────────────────

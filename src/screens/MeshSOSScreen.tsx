@@ -48,7 +48,7 @@ const GENERIC_VOICE_ERROR = 'Voice unavailable. Please try again.';
 
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-const withRetry = async <T>(task: () => Promise<T>, retries = 1): Promise<T> => {
+const withRetry = async <T,>(task: () => Promise<T>, retries = 1): Promise<T> => {
   let lastError: unknown;
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
@@ -273,12 +273,12 @@ export const MeshSOSScreen: React.FC = () => {
         await sessionRef.current.stop();
         sessionRef.current = null;
       }
-      
+    } catch (error) {
+      console.error('Stop voice agent error:', error);
+    } finally {
       setIsVoiceActive(false);
       setVoiceStatus('AI First-Responder Ready');
       setAudioLevel(0);
-    } catch (error) {
-      console.error('Stop voice agent error:', error);
     }
   };
 

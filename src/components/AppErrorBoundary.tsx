@@ -18,8 +18,9 @@ export class AppErrorBoundary extends React.Component<AppErrorBoundaryProps, App
     return { hasError: true };
   }
 
-  componentDidCatch(error: unknown) {
+  componentDidCatch(error: unknown, errorInfo: React.ErrorInfo) {
     console.error('AppErrorBoundary caught an error:', error);
+    console.error('Component stack:', errorInfo.componentStack);
   }
 
   private handleRetry = () => {

@@ -80,13 +80,13 @@ export const ChatBackend = {
 
   async getAllRooms(): Promise<ChatRoom[]> {
     ensureModule();
-    const json = await withRetry('getAllRooms', () => ChatBackendModule.getAllRooms());
+    const json = await withRetry<string>('getAllRooms', () => ChatBackendModule.getAllRooms());
     return parseJsonArray<ChatRoom[]>(json, []);
   },
 
   async getRoomHistory(roomId: string): Promise<ChatMessage[]> {
     ensureModule();
-    const json = await withRetry('getRoomHistory', () => ChatBackendModule.getRoomHistory(roomId));
+    const json = await withRetry<string>('getRoomHistory', () => ChatBackendModule.getRoomHistory(roomId));
     return parseJsonArray<ChatMessage[]>(json, []);
   },
 
@@ -129,13 +129,19 @@ export const ChatBackend = {
    */
   async buildPrompt(text: string, imageContext?: string): Promise<PromptConfig> {
     ensureModule();
-    const json = await withRetry('buildPrompt', () => ChatBackendModule.buildPrompt(text, imageContext ?? ''));
-    const parsed = JSON.parse(json);
+    const json = await withRetry<string>('buildPrompt', () => ChatBackendModule.buildPrompt(text, imageContext ?? ''));
+    let parsed: any;
+    try {
+      parsed = JSON.parse(json);
+    } catch (parseError) {
+      console.error('ChatBackend buildPrompt: failed to parse response JSON', parseError);
+      throw new Error('Failed to build prompt: invalid response from backend');
+    }
     return {
-      prompt: parsed.prompt,
+      prompt: parsed.prompt ?? '',
       systemPrompt: parsed.systemPrompt || '',
-      maxTokens: parsed.maxTokens,
-      temperature: parsed.temperature,
+      maxTokens: parsed.maxTokens ?? 512,
+      temperature: parsed.temperature ?? 0.7,
     };
   },
 
