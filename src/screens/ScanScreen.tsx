@@ -27,9 +27,16 @@ import { ChatBackend } from '../services/ChatBackendBridge';
 import { playBase64Audio } from '../utils/AudioPlayer';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import LinearGradient from 'react-native-linear-gradient';
-import { BottomNav } from '../components';
+import { BottomNav, MarkdownRenderer } from '../components';
 import { AuditTimelineService } from '../services/AuditTimelineService';
 import { classifySymptomText } from '../services/SymptomClassifier';
+import * as Picker from '@react-native-documents/picker';
+import {
+  HEALTHCARE_SYSTEM_PROMPT,
+  OCR_CONTEXT_PROMPT,
+  RESPONSE_VALIDATION_CHECKS,
+  EMERGENCY_KEYWORDS,
+} from '../utils/HealthCarePrompts';
 
 const { width } = Dimensions.get('window');
 const MAX_OCR_CHARS = 8000;
@@ -37,7 +44,7 @@ const GENERIC_ERROR_MESSAGE = 'Something went wrong. Please try again.';
 
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-const withRetry = async <T>(task: () => Promise<T>, retries = 1): Promise<T> => {
+const withRetry = async <T,>(task: () => Promise<T>, retries = 1): Promise<T> => {
   let lastError: unknown;
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
@@ -51,24 +58,6 @@ const withRetry = async <T>(task: () => Promise<T>, retries = 1): Promise<T> => 
   }
   throw lastError;
 };
-
-const OCR_SUMMARY_PROMPT = `You are Dr. Sahayak, a medical assistant.
-
-You will receive OCR text extracted from an image or PDF. Your task is text-only analysis.
-Do not claim to see the image. Use only OCR text and user context.
-
-Output format:
-• Section 1 - Key Summary (4-8 bullets)
-• Section 2 - Important Values/Findings (if any)
-• Section 3 - Actionable Next Steps
-• Section 4 - Red Flags / Emergency Signs
-
-Rules:
-• If OCR text is noisy or incomplete, say so clearly.
-• If medical info is present, be cautious and non-diagnostic.
-• End with: "⚠️ Disclaimer: This is AI-assisted guidance, not a medical diagnosis. Consult a qualified doctor."
-• Use concise bullet points only.`;
-
 
 export const ScanScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
@@ -86,7 +75,6 @@ export const ScanScreen: React.FC = () => {
     if ((NativeModules as any)?.RNDocumentPicker) {
       return true;
     }
-
     const turboProxy = (global as any)?.__turboModuleProxy;
     if (typeof turboProxy === 'function') {
       try {
@@ -95,7 +83,6 @@ export const ScanScreen: React.FC = () => {
         return false;
       }
     }
-
     return false;
   }, []);
 
@@ -121,17 +108,10 @@ export const ScanScreen: React.FC = () => {
       Alert.alert('Permission Denied', GENERIC_ERROR_MESSAGE);
       return;
     }
-
     launchCamera(
-      {
-        mediaType: 'photo',
-        quality: 0.8,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        saveToPhotos: false,
-      },
-      (response) => {
-        if (response.didCancel) return;
+      { mediaType: 'photo', quality: 0.8, maxWidth: 1024, maxHeight: 1024, saveToPhotos: false },
+      response => {
+        if (response.didCancel) { return; }
         if (response.errorCode) {
           Alert.alert('Camera Error', GENERIC_ERROR_MESSAGE);
           return;
@@ -148,14 +128,9 @@ export const ScanScreen: React.FC = () => {
 
   const handleGalleryPick = useCallback(() => {
     launchImageLibrary(
-      {
-        mediaType: 'photo',
-        quality: 0.8,
-        maxWidth: 1024,
-        maxHeight: 1024,
-      },
-      (response) => {
-        if (response.didCancel) return;
+      { mediaType: 'photo', quality: 0.8, maxWidth: 1024, maxHeight: 1024 },
+      response => {
+        if (response.didCancel) { return; }
         if (response.errorCode) {
           Alert.alert('Gallery Error', GENERIC_ERROR_MESSAGE);
           return;
@@ -173,46 +148,32 @@ export const ScanScreen: React.FC = () => {
   const handlePdfPick = useCallback(async () => {
     try {
       if (!isDocumentPickerAvailable()) {
-        Alert.alert(
-          'PDF Picker Not Ready',
-          GENERIC_ERROR_MESSAGE,
-        );
+        Alert.alert('PDF Picker Not Ready', GENERIC_ERROR_MESSAGE);
         return;
       }
-
-      const picker = require('@react-native-documents/picker');
-
-      const result = await picker.pick({
-        type: [picker.types.pdf],
-        mode: 'open',
-      });
+      const result = await Picker.pick({ type: [Picker.types.pdf], mode: 'open' });
       const file = result[0];
-
       setSelectedPdf({
         uri: file.uri,
         name: file.name || 'document.pdf',
-        size: file.size || undefined,
+        size: file.size ?? undefined,
       });
       setCapturedImage(null);
       setAnalysisResult('');
       setStatusMessage('');
     } catch (error: any) {
-      const picker = require('@react-native-documents/picker');
-      if (picker.isErrorWithCode(error) && error.code === picker.errorCodes.OPERATION_CANCELED) {
+      if (Picker.isErrorWithCode(error) && error.code === Picker.errorCodes.OPERATION_CANCELED) {
         return;
       }
       Alert.alert('PDF Error', GENERIC_ERROR_MESSAGE);
     }
   }, [isDocumentPickerAvailable]);
 
-
-
   const handleAnalyze = useCallback(async () => {
     if (!capturedImage?.uri && !selectedPdf?.uri) {
       Alert.alert('No File Selected', 'Please capture/select an image or upload a PDF first.');
       return;
     }
-
     if (selectedPdf?.uri && Platform.OS !== 'android') {
       Alert.alert('PDF OCR Not Available', 'PDF OCR is currently available on Android in this build.');
       return;
@@ -225,7 +186,7 @@ export const ScanScreen: React.FC = () => {
     responseRef.current = '';
 
     try {
-      // Step 1: Extract text via OCR from image or PDF
+      // Step 1: Extract text via OCR
       let extractedText = '';
       try {
         if (selectedPdf?.uri) {
@@ -234,7 +195,7 @@ export const ScanScreen: React.FC = () => {
         } else if (capturedImage?.uri) {
           setStatusMessage('Scanning image for text...');
           const ocrResult = await TextRecognition.recognize(capturedImage.uri);
-          extractedText = ocrResult?.text || '';
+          extractedText = ocrResult?.text ?? '';
         }
 
         if (extractedText) {
@@ -246,8 +207,7 @@ export const ScanScreen: React.FC = () => {
         }
         console.log('OCR extracted text length:', extractedText.length);
       } catch (ocrErr: any) {
-        console.warn('OCR extraction failed (non-fatal):', ocrErr?.message || ocrErr);
-        // Continue even if OCR fails — user may have provided context
+        console.warn('OCR extraction failed (non-fatal):', ocrErr?.message ?? ocrErr);
       }
 
       if (!extractedText && !additionalContext.trim()) {
@@ -265,6 +225,7 @@ export const ScanScreen: React.FC = () => {
 
       const classifierInput = `${additionalContext}\n${extractedText}`.trim();
       const classification = classifySymptomText(classifierInput);
+
       if (classification.detected) {
         await AuditTimelineService.logEvent({
           type: 'symptom_entry',
@@ -295,55 +256,51 @@ export const ScanScreen: React.FC = () => {
         });
       }
 
-      // Step 2: Check if LLM is loaded, reload if needed
+      // Step 2: Ensure model is loaded
       setStatusMessage('Preparing AI model...');
       try {
         const modelLoaded = await RunAnywhere.isModelLoaded();
         if (!modelLoaded) {
-          // Try to reload the LLM — the VLM flow may have unloaded it
-          setStatusMessage('Loading AI model...');
-          const modelPath = await RunAnywhere.getModelPath('qwen2.5-1.5b-instruct-q4km');
-          if (modelPath) {
-            await RunAnywhere.loadModel(modelPath);
-          } else {
-            // Try fallback models
-            for (const fallback of ['smollm2-360m-q8_0', 'lfm2-350m-q8_0']) {
-              try {
-                const fbPath = await RunAnywhere.getModelPath(fallback);
-                if (fbPath) {
-                  await RunAnywhere.loadModel(fbPath);
-                  break;
-                }
-              } catch { /* try next */ }
-            }
-          }
+          await modelService.downloadAndLoadLLM();
         }
       } catch (modelErr: any) {
-        console.warn('Model check/load failed:', modelErr?.message || modelErr);
+        console.warn('Model service load failed:', modelErr?.message ?? modelErr);
       }
 
-      // Step 3: Build strict OCR -> Qwen prompt
-      let analysisPrompt = OCR_SUMMARY_PROMPT + '\n\n';
-      analysisPrompt += `SOURCE TYPE: ${selectedPdf ? 'PDF' : 'IMAGE'}\n\n`;
-      analysisPrompt += `OCR TEXT:\n"""${extractedText || ''}"""\n\n`;
+      // Step 3: Build prompt
+      let systemPrompt = HEALTHCARE_SYSTEM_PROMPT;
+      systemPrompt += `\n\n${OCR_CONTEXT_PROMPT}`;
+      systemPrompt += '\n\nSUMMARY TASK: Analyze the following OCR clinical text. Focus on identifying patient data, lab values, and red flags.';
+      systemPrompt += `\n\nQUALITY CHECKLIST:\n${RESPONSE_VALIDATION_CHECKS.map((c: string) => `• ${c}`).join('\n')}`;
+      systemPrompt += `\n\nEMERGENCY MONITORING:\n${EMERGENCY_KEYWORDS.join(', ')}`;
+
+      let analysisUserPrompt = `SOURCE TYPE: ${selectedPdf ? 'PDF' : 'IMAGE'}\n\n`;
+      analysisUserPrompt += `OCR TEXT:\n"""${extractedText || ''}"""\n\n`;
       if (additionalContext.trim()) {
-        analysisPrompt += `USER CONTEXT:\n"""${additionalContext.trim()}"""\n\n`;
+        analysisUserPrompt += `USER CONTEXT:\n"""${additionalContext.trim()}"""\n\n`;
       }
-      analysisPrompt += 'Generate the final summary now.';
+      analysisUserPrompt += 'Please provide a structured medical summary.';
 
       // Step 4: Stream LLM response
       setStatusMessage('Analyzing...');
 
       try {
-        const streaming = await RunAnywhere.generateStream(analysisPrompt, {
+        const streaming = await RunAnywhere.generateStream(analysisUserPrompt, {
           maxTokens: 1000,
-          temperature: 0.7,
+          temperature: 0.3,
+          systemPrompt,
         });
 
+        let statusCleared = false;
+
         for await (const token of streaming.stream) {
+          if (token == null) { continue; }
           responseRef.current += token;
           setAnalysisResult(responseRef.current);
-          setStatusMessage('');
+          if (!statusCleared) {
+            setStatusMessage('');
+            statusCleared = true;
+          }
         }
 
         await AuditTimelineService.logEvent({
@@ -357,69 +314,35 @@ export const ScanScreen: React.FC = () => {
           },
         });
       } catch (streamErr: any) {
-        console.warn('generateStream failed, trying non-stream:', streamErr?.message || streamErr);
-        // Fallback to non-streaming generate
+        console.warn('Streaming failed, trying non-stream fallback:', streamErr?.message ?? streamErr);
         try {
           const result = await withRetry(
-            () => RunAnywhere.generate(analysisPrompt, {
+            () => RunAnywhere.generate(analysisUserPrompt, {
               maxTokens: 1000,
-              temperature: 0.7,
+              temperature: 0.3,
+              systemPrompt,
             }),
             1,
           );
           if (result?.text) {
             setAnalysisResult(result.text);
-            await AuditTimelineService.logEvent({
-              type: 'analysis_completed',
-              severity: 'info',
-              source: 'scan',
-              summary: 'Scan analysis completed with fallback generation',
-              details: {
-                responseLength: result.text.length,
-                usedStreaming: false,
-              },
-            });
           } else {
-            throw new Error('Empty response from generate');
+            throw new Error('Empty fallback response');
           }
         } catch (genErr: any) {
-          console.error('Non-streaming generate also failed:', genErr?.message || genErr);
-          setAnalysisResult(
-            'Analysis failed. Please try again.\n\n' +
-            '• Make sure the AI model is loaded\n' +
-            '• Try again in a few seconds\n' +
-            '• Close other apps to free memory',
-          );
-          await AuditTimelineService.logEvent({
-            type: 'model_issue',
-            severity: 'warning',
-            source: 'scan',
-            summary: 'Scan analysis failed in both streaming and fallback modes',
-            details: {
-              streamError: streamErr?.message || String(streamErr),
-              generateError: genErr?.message || String(genErr),
-            },
-          });
+          console.error('Fallback generate failed:', genErr);
+          setAnalysisResult('Analysis failed. Please make sure the AI model is loaded and try again.');
         }
       }
     } catch (error: any) {
-      console.error('Scan analysis error:', error);
-      setAnalysisResult('Analysis failed. Please try again.');
-      await AuditTimelineService.logEvent({
-        type: 'model_issue',
-        severity: 'warning',
-        source: 'scan',
-        summary: 'Scan analysis pipeline error',
-        details: {
-          error: error?.message || String(error),
-        },
-      });
+      console.error('Scan pipeline error:', error);
+      setAnalysisResult('Scan analysis failed. Please try again.');
     } finally {
       setIsAnalyzing(false);
       setStatusMessage('');
       setDownloadProgress(0);
     }
-  }, [capturedImage, selectedPdf, additionalContext]);
+  }, [capturedImage, selectedPdf, additionalContext, modelService]);
 
   const handleReset = useCallback(() => {
     setCapturedImage(null);
@@ -431,19 +354,17 @@ export const ScanScreen: React.FC = () => {
     responseRef.current = '';
   }, []);
 
-
   const handlePlayTTS = async () => {
-    if (!analysisResult) return;
+    if (!analysisResult) { return; }
     try {
       if (!modelService.isTTSLoaded) {
         Alert.alert('TTS Not Loaded', 'Please wait for the Text-to-Speech model to load.');
         return;
       }
       setStatusMessage('Synthesizing speech...');
-      const cleanResult = analysisResult.replace(/[*#]/g, ''); // Basic markdown symbol cleanup
+      const cleanResult = analysisResult.replace(/[*#]/g, '');
       const synthResult = await RunAnywhere.synthesize(cleanResult, { voice: '0', rate: 1.0 });
-
-      if (synthResult.audioData) {
+      if (synthResult?.audioData) {
         setStatusMessage('Playing audio...');
         await playBase64Audio(synthResult.audioData);
         setStatusMessage('');
@@ -454,6 +375,8 @@ export const ScanScreen: React.FC = () => {
       setStatusMessage('');
     }
   };
+
+  const isAnalyzeDisabled = (!capturedImage && !selectedPdf) || isAnalyzing;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -487,7 +410,6 @@ export const ScanScreen: React.FC = () => {
           {capturedImage?.uri ? (
             <TouchableOpacity onPress={handleReset} activeOpacity={0.9} style={styles.imagePreviewContainer}>
               <Image source={{ uri: capturedImage.uri }} style={styles.imagePreview} />
-              {/* Scan corners */}
               <View style={[styles.cornerTL, styles.corner]} />
               <View style={[styles.cornerTR, styles.corner]} />
               <View style={[styles.cornerBL, styles.corner]} />
@@ -507,7 +429,6 @@ export const ScanScreen: React.FC = () => {
             <View style={styles.placeholderContainer}>
               <Text style={styles.placeholderLabel}>Capture image or upload a medical PDF</Text>
               <View style={styles.viewfinderFrame}>
-                {/* Scan corners */}
                 <View style={[styles.cornerTL, styles.corner]} />
                 <View style={[styles.cornerTR, styles.corner]} />
                 <View style={[styles.cornerBL, styles.corner]} />
@@ -517,18 +438,15 @@ export const ScanScreen: React.FC = () => {
             </View>
           )}
 
-          {/* Camera/Gallery Buttons */}
+          {/* Camera / Gallery / PDF Buttons */}
           <View style={styles.captureButtons}>
             <TouchableOpacity style={styles.captureBtn} onPress={handleCameraCapture}>
-              <LinearGradient
-                colors={['#1B3A5C', '#102A43']}
-                style={styles.captureBtnInner}
-              >
+              <LinearGradient colors={['#1B3A5C', '#102A43']} style={styles.captureBtnInner}>
                 <MaterialCommunityIcons name="camera" size={26} color="#FFFFFF" />
               </LinearGradient>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.captureBtn} onPress={handleGalleryPick}>
+            <TouchableOpacity style={[styles.captureBtn, { marginHorizontal: 24 }]} onPress={handleGalleryPick}>
               <View style={[styles.captureBtnInner, styles.galleryBtnInner]}>
                 <MaterialCommunityIcons name="image-multiple" size={26} color="#1B3A5C" />
               </View>
@@ -542,6 +460,7 @@ export const ScanScreen: React.FC = () => {
           </View>
         </View>
 
+        {/* Context Input */}
         <View style={styles.contextCard}>
           <Text style={styles.contextLabel}>Optional context for better summary</Text>
           <TextInput
@@ -555,20 +474,20 @@ export const ScanScreen: React.FC = () => {
           />
         </View>
 
-        {/* Analyze Scan Button */}
+        {/* Analyze Button */}
         <TouchableOpacity
-          style={[styles.analyzeBtn, ((!capturedImage && !selectedPdf) || isAnalyzing) && styles.analyzeBtnDisabled]}
+          style={[styles.analyzeBtn, isAnalyzeDisabled && styles.analyzeBtnDisabled]}
           onPress={handleAnalyze}
-          disabled={(!capturedImage && !selectedPdf) || isAnalyzing}
+          disabled={isAnalyzeDisabled}
         >
           <LinearGradient
-            colors={((!capturedImage && !selectedPdf) || isAnalyzing) ? ['#94A3B8', '#64748B'] : ['#1B3A5C', '#102A43']}
+            colors={isAnalyzeDisabled ? ['#94A3B8', '#64748B'] : ['#1B3A5C', '#102A43']}
             style={styles.btnGradient}
           >
             {isAnalyzing ? (
               <View style={styles.analyzingRow}>
                 <ActivityIndicator size="small" color="#FFFFFF" />
-                <Text style={styles.analyzeBtnText}>
+                <Text style={[styles.analyzeBtnText, { marginLeft: 12 }]}>
                   {statusMessage || 'Analyzing...'}
                 </Text>
               </View>
@@ -592,15 +511,15 @@ export const ScanScreen: React.FC = () => {
         )}
 
         {/* Status Message */}
-        {isAnalyzing && statusMessage && !analysisResult ? (
+        {isAnalyzing && !!statusMessage && !analysisResult && (
           <View style={styles.statusCard}>
             <ActivityIndicator size="small" color="#1B3A5C" />
             <Text style={styles.statusText}>{statusMessage}</Text>
           </View>
-        ) : null}
+        )}
 
         {/* Results */}
-        {analysisResult ? (
+        {!!analysisResult && (
           <View style={styles.resultCard}>
             <View style={styles.resultHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -612,22 +531,22 @@ export const ScanScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
             <View style={styles.resultDivider} />
-            <Text style={styles.resultText} selectable>
-              {analysisResult}
-            </Text>
+            <MarkdownRenderer 
+              text={analysisResult} 
+              baseStyle={styles.resultText} 
+            />
             {isAnalyzing && (
               <View style={styles.streamingIndicator}>
                 <ActivityIndicator size="small" color="#1B3A5C" />
-                <Text style={styles.streamingText}>Generating...</Text>
+                <Text style={[styles.streamingText, { marginLeft: 10 }]}>Generating...</Text>
               </View>
             )}
           </View>
-        ) : null}
+        )}
 
         <View style={{ height: 100 }} />
       </ScrollView>
-      
-      {/* Bottom Navigation */}
+
       <BottomNav activeTab="Scan" />
     </SafeAreaView>
   );
@@ -810,7 +729,7 @@ const styles = StyleSheet.create({
   captureButtons: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 24,
+    alignItems: 'center',
     marginTop: 24,
   },
   captureBtn: {
@@ -899,13 +818,11 @@ const styles = StyleSheet.create({
   analyzingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
   },
   progressContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 20,
-    gap: 14,
     paddingHorizontal: 4,
   },
   progressBarBg: {
@@ -916,6 +833,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    marginRight: 14,
   },
   progressBarFill: {
     height: '100%',
@@ -936,7 +854,6 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 18,
     marginBottom: 20,
-    gap: 14,
     borderWidth: 1.5,
     borderColor: '#F1F5F9',
   },
@@ -945,6 +862,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#475569',
     fontWeight: '600',
+    marginLeft: 14,
   },
   resultCard: {
     backgroundColor: '#F8FAFC',
@@ -994,7 +912,6 @@ const styles = StyleSheet.create({
   streamingIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
     marginTop: 18,
     paddingTop: 18,
     borderTopWidth: 2,

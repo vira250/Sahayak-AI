@@ -63,7 +63,7 @@ interface ModelServiceProviderProps {
 
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-const withRetry = async <T>(label: string, task: () => Promise<T>, retries = 1): Promise<T> => {
+const withRetry = async <T,>(label: string, task: () => Promise<T>, retries = 1): Promise<T> => {
   let lastError: unknown;
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
@@ -138,11 +138,11 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
       throw new Error(`Model path not found for ${modelId}`);
     }
 
-    // Try loading the model
+    // Try loading the model using its registered ID (more robust than path)
     try {
-      console.log(`Loading LLM model from path: ${modelPath}`);
+      console.log(`Loading LLM model by ID: ${modelId}`);
       setIsLLMLoading(true);
-      await RunAnywhere.loadModel(modelPath);
+      await RunAnywhere.loadModel(modelId);
       console.log(`Successfully loaded LLM model: ${modelId}`);
       setIsLLMLoaded(true);
       setActiveLLMModelId(modelId);
@@ -163,9 +163,9 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
         throw new Error(`Re-download failed for ${modelId}`);
       }
 
-      console.log(`Re-loading LLM model from path: ${modelPath}`);
+      console.log(`Re-loading LLM model by ID: ${modelId}`);
       setIsLLMLoading(true);
-      await RunAnywhere.loadModel(modelPath);
+      await RunAnywhere.loadModel(modelId);
       console.log(`Successfully loaded LLM model on retry: ${modelId}`);
       setIsLLMLoaded(true);
       setActiveLLMModelId(modelId);

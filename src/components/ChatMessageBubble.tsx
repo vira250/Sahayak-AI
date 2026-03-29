@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { AppColors } from '../theme';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 export interface ChatMessage {
   text: string;
@@ -49,15 +50,15 @@ export const ChatMessageBubble: React.FC<ChatMessageBubbleProps> = ({
             <Text style={styles.attachmentLabel}>Image Attached</Text>
           </View>
         )}
-        <Text
-          style={[
+        <MarkdownRenderer
+          text={displayText}
+          isUser={isUser}
+          baseStyle={StyleSheet.flatten([
             styles.text,
             isUser ? styles.userText : styles.assistantText,
             isError && styles.errorText,
-          ]}
-        >
-          {displayText}
-        </Text>
+          ])}
+        />
 
         {!isUser && !isStreaming && (
           <View style={styles.metricsContainer}>
@@ -123,7 +124,7 @@ const styles = StyleSheet.create({
     lineHeight: 21,
   },
   userText: {
-    color: '#FFFFFF',
+    color: '#000000ff',
   },
   assistantText: {
     color: AppColors.textPrimary,

@@ -1,9 +1,9 @@
 buildscript {
     ext {
-        buildToolsVersion = "36.0.0"
+        buildToolsVersion = "35.0.0"
         minSdkVersion = 24
-        compileSdkVersion = 36
-        targetSdkVersion = 36
+        compileSdkVersion = 35
+        targetSdkVersion = 35
         ndkVersion = "27.0.12077973"
         kotlinVersion = "2.1.20"
     }
@@ -45,17 +45,31 @@ subprojects {
 // Fix: Node.js not found when running from Android Studio
 // Android Studio doesn't inherit terminal PATH, so we need to explicitly set it
 // =============================================================================
-def nodeDir = "/opt/homebrew/bin"
-def nodePath = "${nodeDir}/node"
+// Fix: Node.js detection for both POSIX and Windows
+def nodePath = "node"
+def nodeDir = ""
 
-// Check if node exists in common locations
-if (!file(nodePath).exists()) {
-    if (file("/usr/local/bin/node").exists()) {
-        nodeDir = "/usr/local/bin"
-        nodePath = "/usr/local/bin/node"
-    } else if (file("/usr/bin/node").exists()) {
-        nodeDir = "/usr/bin"
-        nodePath = "/usr/bin/node"
+if (System.getProperty("os.name").toLowerCase().contains("windows")) {
+    // On Windows, 'where' is used to find the executable path
+    try {
+        def process = "where node".execute()
+        process.waitFor()
+        if (process.exitValue() == 0) {
+            nodePath = process.text.trim().split("\n")[0].trim()
+            nodeDir = new File(nodePath).parent
+        }
+    } catch (Exception e) {
+        // Fallback to default PATH if 'where' fails
+    }
+} else {
+    // POSIX logic
+    def commonPaths = ["/opt/homebrew/bin/node", "/usr/local/bin/node", "/usr/bin/node"]
+    for (path in commonPaths) {
+        if (file(path).exists()) {
+            nodePath = path
+            nodeDir = new File(path).parent
+            break
+        }
     }
 }
 
@@ -64,9 +78,10 @@ ext.NODE_BINARY = nodePath
 
 // Fix PATH for codegen tasks using taskGraph
 gradle.taskGraph.whenReady { taskGraph ->
-    def fullPath = "${nodeDir}:/usr/local/bin:/usr/bin:" + (System.getenv("PATH") ?: "")
+    def pathSeparator = System.getProperty("os.name").toLowerCase().contains("windows") ? ";" : ":"
+    def fullPath = (nodeDir ? "${nodeDir}${pathSeparator}" : "") + (System.getProperty("os.name").toLowerCase().contains("windows") ? "" : "/usr/local/bin${pathSeparator}/usr/bin${pathSeparator}") + (System.getenv("PATH") ?: "")
     taskGraph.allTasks.each { task ->
-        if (task instanceof Exec) {
+        if (task.class.name.contains("Exec")) {
             task.environment("PATH", fullPath)
             task.environment("NODE_BINARY", nodePath)
         }

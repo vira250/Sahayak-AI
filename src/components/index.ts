@@ -3,3 +3,4 @@ export * from './ModelLoaderWidget';
 export * from './ChatMessageBubble';
 export * from './AudioVisualizer';
 export * from './BottomNav';
+export * from './MarkdownRenderer';

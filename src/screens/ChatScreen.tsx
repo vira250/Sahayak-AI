@@ -24,12 +24,19 @@ import { StackScreenProps } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
 import { RunAnywhere, VoiceSessionEvent, VoiceSessionHandle } from '@runanywhere/core';
 import { useModelService } from '../services/ModelService';
-import { ChatMessage, ModelLoaderWidget } from '../components';
+import { ChatMessage, ModelLoaderWidget, MarkdownRenderer } from '../components';
 import { ChatBackend } from '../services/ChatBackendBridge';
 import { playBase64Audio } from '../utils/AudioPlayer';
 import { AuditTimelineService } from '../services/AuditTimelineService';
 import { classifySymptomText } from '../services/SymptomClassifier';
-import { HEALTHCARE_SYSTEM_PROMPT } from '../utils/HealthCarePrompts';
+import {
+  HEALTHCARE_SYSTEM_PROMPT,
+  OCR_CONTEXT_PROMPT,
+  CONVERSATION_CONTEXT_PROMPT,
+  HEALTHCARE_MODEL_PARAMS,
+  RESPONSE_VALIDATION_CHECKS,
+  EMERGENCY_KEYWORDS
+} from '../utils/HealthCarePrompts';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -201,7 +208,11 @@ const SahayakMessageBubble: React.FC<{
                 <Text style={bubbleStyles.attachmentLabel}>Text extracted from image</Text>
               </View>
             )}
-            <Text style={bubbleStyles.userTextBelowImage}>{displayText}</Text>
+            <MarkdownRenderer
+              text={displayText}
+              isUser={true}
+              baseStyle={bubbleStyles.userTextBelowImage}
+            />
             <Text style={bubbleStyles.timestamp}>
               {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </Text>
@@ -220,7 +231,11 @@ const SahayakMessageBubble: React.FC<{
               <Text style={bubbleStyles.attachmentLabel}>Image Context Attached</Text>
             </View>
           )}
-          <Text style={bubbleStyles.userText}>{displayText}</Text>
+          <MarkdownRenderer
+            text={displayText}
+            isUser={true}
+            baseStyle={bubbleStyles.userText}
+          />
           <Text style={bubbleStyles.timestamp}>
             {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </Text>
@@ -240,13 +255,15 @@ const SahayakMessageBubble: React.FC<{
         />
       </View>
       <View style={bubbleStyles.aiBubble}>
-        <Text style={[
-          bubbleStyles.aiText,
-          message.isError && bubbleStyles.errorText,
-          message.wasCancelled && bubbleStyles.cancelledText,
-        ]}>
-          {message.text}
-        </Text>
+        <MarkdownRenderer
+          text={message.text}
+          isUser={false}
+          baseStyle={StyleSheet.flatten([
+            bubbleStyles.aiText,
+            message.isError && bubbleStyles.errorText,
+            message.wasCancelled && bubbleStyles.cancelledText,
+          ])}
+        />
         {isStreaming && <TypingDots />}
         <View style={bubbleStyles.aiFooter}>
           <Text style={bubbleStyles.aiLabel}>Sahayak AI</Text>
@@ -630,16 +647,43 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
       const config = await ChatBackend.buildPrompt(text, currentImageContext);
 
       const isQwenActive = (modelService.activeLLMModelId || '').toLowerCase().includes('qwen');
-      const effectiveSystemPrompt = isQwenActive
-        ? `${HEALTHCARE_SYSTEM_PROMPT}\n\n${config.systemPrompt}`.trim()
-        : config.systemPrompt;
 
-      // Run LLM generation — plain text prompt, SDK handles chat template natively
-      const streamResult = await RunAnywhere.generateStream(config.prompt, {
+      let finalSystemPrompt = config.systemPrompt;
+      if (isQwenActive) {
+        // Build optimized healthcare system prompt with dynamic context
+        let healthcareInstructions = HEALTHCARE_SYSTEM_PROMPT;
+
+        if (currentImageContext) {
+          healthcareInstructions += `\n\n${OCR_CONTEXT_PROMPT}`;
+        }
+
+        // Merge with session-specific context from Kotlin backend
+        finalSystemPrompt = `${healthcareInstructions}\n\nADDITIONAL SESSION CONTEXT:\n${config.systemPrompt}`.trim();
+
+        // Add validation checklist and emergency context for better instruction following
+        finalSystemPrompt += `\n\nRESPONSE QUALITY CHECKLIST (Ensure your response follows these):\n${RESPONSE_VALIDATION_CHECKS.map(c => `• ${c}`).join('\n')}`;
+        finalSystemPrompt += `\n\nEMERGENCY MONITORING KEYWORDS:\n${EMERGENCY_KEYWORDS.join(', ')}`;
+
+        // If local classifier detected emergency, emphasize it in system prompt
+        const classification = classifySymptomText(text);
+        if (classification.emergency) {
+          finalSystemPrompt += `\n\nCRITICAL: User query indicates a potential emergency (${classification.condition}). 
+          Prioritize emergency guidance and "Section 4 - Red Flags" in your response.`;
+        }
+      }
+
+      const generationParams = isQwenActive ? {
+        maxTokens: HEALTHCARE_MODEL_PARAMS.maxTokens,
+        temperature: HEALTHCARE_MODEL_PARAMS.temperature,
+        systemPrompt: finalSystemPrompt,
+      } : {
         maxTokens: config.maxTokens,
         temperature: config.temperature,
-        systemPrompt: effectiveSystemPrompt,
-      });
+        systemPrompt: finalSystemPrompt,
+      };
+
+      // Run LLM generation — plain text prompt, SDK handles chat template natively
+      const streamResult = await RunAnywhere.generateStream(config.prompt, generationParams);
       streamCancelRef.current = streamResult.cancel;
       responseRef.current = '';
       for await (const token of streamResult.stream) {
@@ -1019,7 +1063,7 @@ const bubbleStyles = StyleSheet.create({
     shadowColor: Colors.onSurface, shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
   },
-  userText: { fontSize: 14, color: Colors.onPrimaryFixed },
+  userText: { fontSize: 14, color: '#000000' },
   timestamp: { fontSize: 10, color: Colors.onSurface, opacity: 0.5, marginTop: 4, alignSelf: 'flex-end', fontWeight: '500' },
 
   attachmentBadge: {
@@ -1080,7 +1124,7 @@ const bubbleStyles = StyleSheet.create({
     backgroundColor: Colors.surfaceContainerHighest,
   },
   userTextBelowImage: {
-    fontSize: 14, color: Colors.onPrimaryFixed,
+    fontSize: 14, color: '#000000',
     paddingHorizontal: 14, paddingTop: 10, paddingBottom: 4,
   },
 
