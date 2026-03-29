@@ -11,11 +11,13 @@ import {
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation, CommonActions } from '@react-navigation/native';
 import { useModelService } from '../services/ModelService';
+import { useToast } from '../services/ToastService';
 import { AppColors } from '../theme';
 
 export const ModelDownloadScreen: React.FC = () => {
   const navigation = useNavigation();
   const modelService = useModelService();
+  const { showToast } = useToast();
   const [isDownloadingAll, setIsDownloadingAll] = useState(false);
 
   const handleDownloadAll = async () => {
@@ -24,6 +26,7 @@ export const ModelDownloadScreen: React.FC = () => {
       await modelService.downloadAndLoadAllModels();
     } catch (error) {
       console.error('Download all error:', error);
+      showToast('Download failed. Check your internet connection and try again.', 'error', 'bottom');
     } finally {
       setIsDownloadingAll(false);
     }

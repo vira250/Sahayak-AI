@@ -225,7 +225,7 @@ export const MeshSOSScreen: React.FC = () => {
 
   const startVoiceAgent = async () => {
     if (!modelService.isVoiceAgentReady) {
-      setVoiceStatus('Models not loaded. Go to Setup.');
+      setVoiceStatus('AI models not loaded. Tap below to set up.');
       return;
     }
     
@@ -365,6 +365,18 @@ export const MeshSOSScreen: React.FC = () => {
             {voiceStatus}
           </Text>
 
+          {/* Setup navigation if models not ready */}
+          {!modelService.isVoiceAgentReady && !isVoiceActive && (
+            <TouchableOpacity
+              onPress={() => navigation.navigate('ModelDownload')}
+              style={styles.setupBtn}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons name="download-outline" size={16} color="#FF5252" />
+              <Text style={styles.setupBtnText}>Go to Setup →</Text>
+            </TouchableOpacity>
+          )}
+
           {/* Transcript Log */}
           {transcripts.length > 0 && (
             <View style={styles.transcriptBox}>
@@ -443,4 +455,20 @@ const styles = StyleSheet.create({
   },
   userText: { color: '#DDD', fontSize: 13, marginBottom: 8, fontStyle: 'italic' },
   aiText: { color: '#FF5252', fontSize: 14, fontWeight: '600', marginBottom: 8 },
+  setupBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#FF5252',
+    gap: 6,
+  },
+  setupBtnText: {
+    color: '#FF5252',
+    fontWeight: '700',
+    fontSize: 13,
+  },
 });

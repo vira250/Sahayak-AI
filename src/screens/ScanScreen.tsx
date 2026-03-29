@@ -105,7 +105,13 @@ export const ScanScreen: React.FC = () => {
   const handleCameraCapture = useCallback(async () => {
     const hasPermission = await requestCameraPermission();
     if (!hasPermission) {
-      Alert.alert('Permission Denied', GENERIC_ERROR_MESSAGE);
+      Alert.alert(
+        'Camera Permission Required',
+        'Sahayak AI needs camera access to scan documents and images. Please go to your device Settings → Apps → Sahayak AI → Permissions and enable Camera.',
+        [
+          { text: 'Dismiss', style: 'cancel' },
+        ],
+      );
       return;
     }
     launchCamera(

@@ -29,6 +29,7 @@ import { ChatBackend } from '../services/ChatBackendBridge';
 import { playBase64Audio } from '../utils/AudioPlayer';
 import { AuditTimelineService } from '../services/AuditTimelineService';
 import { classifySymptomText } from '../services/SymptomClassifier';
+import { useToast } from '../services/ToastService';
 import {
   HEALTHCARE_SYSTEM_PROMPT,
   OCR_CONTEXT_PROMPT,
@@ -72,6 +73,7 @@ type ExtendedChatMessage = ChatMessage & {
 
 type ChatScreenProps = StackScreenProps<RootStackParamList, 'Chat'>;
 const GENERIC_ERROR_MESSAGE = 'Something went wrong. Please try again.';
+const MAX_INPUT_CHARS = 2000;
 
 // ─── Typing Dots ──────────────────────────────────────────────────────────────
 const TypingDots: React.FC = () => {
@@ -346,6 +348,7 @@ const StagedImagePreview: React.FC<{
 export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => {
   // All hooks unconditionally first
   const modelService = useModelService();
+  const { showToast } = useToast();
   const [roomId, setRoomId] = useState<string | undefined>(route.params?.roomId);
 
   const [messages, setMessages] = useState<ExtendedChatMessage[]>([]);
@@ -368,6 +371,8 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
   const inputRef = useRef(''); // Always has latest text (avoids Android state lag)
 
   const updateInputText = useCallback((val: string) => {
+    // Enforce character limit
+    if (val.length > MAX_INPUT_CHARS) return;
     inputRef.current = val;
     setInputText(val);
   }, []);
@@ -563,6 +568,12 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
 
     const hasImage = !!stagedImageUri;
     if (!text && !hasImage) return;
+    // Guard: whitespace-only message
+    if (!text && !hasImage) return;
+    if (inputText.trim().length === 0 && !hasImage) {
+      showToast('Please enter a message before sending', 'info', 'bottom');
+      return;
+    }
     if (isGenerating) return;
 
     if (text) {
@@ -905,19 +916,32 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
                 textAlignVertical="center"
               />
 
-              {modelService.isVoiceAgentReady && (
-                <TouchableOpacity
-                  style={styles.pillIconButton}
-                  onPress={isVoiceActive ? stopVoiceSession : startVoiceSession}
-                  activeOpacity={0.7}
-                >
-                  <MaterialCommunityIcons 
-                    name={isVoiceActive ? 'microphone-off' : 'microphone'} 
-                    size={24} 
-                    color={isVoiceActive ? Colors.error : Colors.primary} 
-                  />
-                </TouchableOpacity>
-              )}
+              {/* Voice button — always visible, guards if models not loaded */}
+              <TouchableOpacity
+                style={styles.pillIconButton}
+                onPress={() => {
+                  if (!modelService.isSTTLoaded || !modelService.isTTSLoaded) {
+                    showToast(
+                      'Voice requires STT & TTS models. Tap “Setup” in the header to load them.',
+                      'info',
+                      'bottom',
+                    );
+                    return;
+                  }
+                  if (isVoiceActive) {
+                    stopVoiceSession();
+                  } else {
+                    startVoiceSession();
+                  }
+                }}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons
+                  name={isVoiceActive ? 'microphone-off' : 'microphone'}
+                  size={24}
+                  color={isVoiceActive ? Colors.error : modelService.isVoiceAgentReady ? Colors.primary : Colors.outline}
+                />
+              </TouchableOpacity>
             </View>
 
             {isGenerating ? (
@@ -938,6 +962,15 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => 
               </TouchableOpacity>
             )}
           </View>
+          {/* Character counter — only shown when near limit */}
+          {inputText.length >= MAX_INPUT_CHARS - 200 && (
+            <Text style={[
+              styles.charCounter,
+              inputText.length >= MAX_INPUT_CHARS && styles.charCounterLimit,
+            ]}>
+              {inputText.length}/{MAX_INPUT_CHARS}
+            </Text>
+          )}
         </View>
       </KeyboardAvoidingView>
 
@@ -1052,6 +1085,17 @@ const styles = StyleSheet.create({
   sendIcon: { color: '#fff', fontSize: 18 },
   typingDots: { flexDirection: 'row', gap: 4, marginTop: 6 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.secondary },
+  charCounter: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.onSurfaceVariant,
+    textAlign: 'right',
+    paddingHorizontal: 16,
+    paddingBottom: 4,
+  },
+  charCounterLimit: {
+    color: Colors.error,
+  },
 });
 
 // ─── Bubble Styles ────────────────────────────────────────────────────────────
@@ -1246,6 +1290,17 @@ const sheetStyles = StyleSheet.create({
     borderRadius: 16, alignItems: 'center',
   },
   cancelText: { fontSize: 15, fontWeight: '600', color: Colors.onSurfaceVariant },
+  charCounter: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.onSurfaceVariant,
+    textAlign: 'right',
+    paddingHorizontal: 16,
+    paddingBottom: 4,
+  },
+  charCounterLimit: {
+    color: Colors.error,
+  },
 });
 
 // ─── Full-screen Preview Styles ───────────────────────────────────────────────

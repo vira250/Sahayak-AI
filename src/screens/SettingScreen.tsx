@@ -28,10 +28,63 @@ const DEFAULT_PROFILE: UserProfile = {
     height: '',
 };
 
+type ValidationErrors = {
+    name?: string;
+    age?: string;
+    weight?: string;
+    height?: string;
+};
+
+const validateProfile = (profile: UserProfile): ValidationErrors => {
+    const errors: ValidationErrors = {};
+    const name = profile.name.trim();
+    if (!name) {
+        errors.name = 'Name is required';
+    } else if (name.length < 2) {
+        errors.name = 'Name must be at least 2 characters';
+    } else if (name.length > 50) {
+        errors.name = 'Name must be under 50 characters';
+    }
+    if (profile.age.trim()) {
+        const age = Number(profile.age);
+        if (isNaN(age) || age < 1 || age > 120) {
+            errors.age = 'Enter a valid age (1–120)';
+        }
+    }
+    if (profile.weight.trim()) {
+        const weight = parseFloat(profile.weight);
+        if (isNaN(weight) || weight < 10 || weight > 300) {
+            errors.weight = 'Enter a valid weight (10–300 kg)';
+        }
+    }
+    if (profile.height.trim()) {
+        const height = parseFloat(profile.height);
+        if (isNaN(height) || height < 50 || height > 250) {
+            errors.height = 'Enter a valid height (50–250 cm)';
+        }
+    }
+    return errors;
+};
+
 export const SettingsScreen: React.FC = () => {
     const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
     const [isSaving, setIsSaving] = useState(false);
+    const [errors, setErrors] = useState<ValidationErrors>({});
+    const [touched, setTouched] = useState<Record<string, boolean>>({});
     const { showToast } = useToast();
+
+    const updateField = (key: keyof UserProfile, value: string) => {
+        const next = { ...profile, [key]: value };
+        setProfile(next);
+        if (touched[key]) {
+            setErrors(validateProfile(next));
+        }
+    };
+
+    const touchField = (key: string) => {
+        setTouched(prev => ({ ...prev, [key]: true }));
+        setErrors(validateProfile(profile));
+    };
 
     // Load profile on mount
     useEffect(() => {
@@ -45,8 +98,16 @@ export const SettingsScreen: React.FC = () => {
     }, []);
 
     const handleSave = async () => {
+        setTouched({ name: true, age: true, weight: true, height: true });
+        const currentErrors = validateProfile(profile);
+        setErrors(currentErrors);
+
         if (!profile.name.trim()) {
             showToast('Please enter your name', 'error', 'bottom');
+            return;
+        }
+        if (Object.keys(currentErrors).length > 0) {
+            showToast('Please fix the errors before saving', 'error', 'bottom');
             return;
         }
         if (!profile.age.trim()) {
@@ -157,32 +218,42 @@ export const SettingsScreen: React.FC = () => {
                     {/* Name */}
                     <View style={styles.inputGroup}>
                         <Text style={styles.inputLabel}>FULL NAME</Text>
-                        <View style={styles.inputWrapper}>
+                        <View style={[styles.inputWrapper, !!errors.name && touched.name && styles.inputWrapperError]}>
                             <MaterialCommunityIcons name="account-outline" size={20} color="#64748B" style={styles.inputIcon} />
                             <TextInput
                                 style={styles.input}
                                 placeholder="Enter your name"
                                 value={profile.name}
-                                onChangeText={(text) => setProfile(prev => ({ ...prev, name: text }))}
+                                onChangeText={(text) => updateField('name', text)}
+                                onBlur={() => touchField('name')}
                                 placeholderTextColor="#94A3B8"
+                                maxLength={50}
                             />
                         </View>
+                        {!!errors.name && touched.name && (
+                            <Text style={styles.fieldError}>{errors.name}</Text>
+                        )}
                     </View>
 
                     <View style={styles.row}>
                         {/* Age */}
                         <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
                             <Text style={styles.inputLabel}>AGE</Text>
-                            <View style={styles.inputWrapper}>
+                            <View style={[styles.inputWrapper, !!errors.age && touched.age && styles.inputWrapperError]}>
                                 <TextInput
                                     style={styles.input}
                                     placeholder="Years"
                                     value={profile.age}
-                                    onChangeText={(text) => setProfile(prev => ({ ...prev, age: text }))}
+                                    onChangeText={(text) => updateField('age', text)}
+                                    onBlur={() => touchField('age')}
                                     keyboardType="numeric"
                                     placeholderTextColor="#94A3B8"
+                                    maxLength={3}
                                 />
                             </View>
+                            {!!errors.age && touched.age && (
+                                <Text style={styles.fieldError}>{errors.age}</Text>
+                            )}
                         </View>
 
                         {/* Gender selection as a row of pills */}
@@ -219,31 +290,41 @@ export const SettingsScreen: React.FC = () => {
                     <View style={styles.row}>
                         <View style={[styles.inputGroup, { flex: 1, marginRight: 12 }]}>
                             <Text style={styles.inputLabel}>WEIGHT (KG)</Text>
-                            <View style={styles.inputWrapper}>
+                            <View style={[styles.inputWrapper, !!errors.weight && touched.weight && styles.inputWrapperError]}>
                                 <MaterialCommunityIcons name="weight-kilogram" size={20} color="#64748B" style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
                                     placeholder="00.0"
                                     value={profile.weight}
-                                    onChangeText={(text) => setProfile(prev => ({ ...prev, weight: text }))}
+                                    onChangeText={(text) => updateField('weight', text)}
+                                    onBlur={() => touchField('weight')}
                                     keyboardType="decimal-pad"
                                     placeholderTextColor="#94A3B8"
+                                    maxLength={5}
                                 />
                             </View>
+                            {!!errors.weight && touched.weight && (
+                                <Text style={styles.fieldError}>{errors.weight}</Text>
+                            )}
                         </View>
                         <View style={[styles.inputGroup, { flex: 1 }]}>
                             <Text style={styles.inputLabel}>HEIGHT (CM)</Text>
-                            <View style={styles.inputWrapper}>
+                            <View style={[styles.inputWrapper, !!errors.height && touched.height && styles.inputWrapperError]}>
                                 <MaterialCommunityIcons name="human-male-height" size={20} color="#64748B" style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
                                     placeholder="000"
                                     value={profile.height}
-                                    onChangeText={(text) => setProfile(prev => ({ ...prev, height: text }))}
+                                    onChangeText={(text) => updateField('height', text)}
+                                    onBlur={() => touchField('height')}
                                     keyboardType="decimal-pad"
                                     placeholderTextColor="#94A3B8"
+                                    maxLength={5}
                                 />
                             </View>
+                            {!!errors.height && touched.height && (
+                                <Text style={styles.fieldError}>{errors.height}</Text>
+                            )}
                         </View>
                     </View>
 
@@ -439,6 +520,16 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#E2E8F0',
         paddingHorizontal: 12,
+    },
+    inputWrapperError: {
+        borderColor: '#EF4444',
+        backgroundColor: '#FEF2F2',
+    },
+    fieldError: {
+        marginTop: 4,
+        fontSize: 11,
+        color: '#EF4444',
+        fontWeight: '600',
     },
     inputIcon: {
         marginRight: 8,
